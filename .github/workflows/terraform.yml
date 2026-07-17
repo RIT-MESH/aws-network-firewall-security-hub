@@ -18,10 +18,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      # Third-party actions pinned to immutable commit SHAs (tags can move).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: "~> 1.5"
           terraform_wrapper: false
@@ -38,13 +37,12 @@ jobs:
         working-directory: terraform
         run: terraform validate
 
-      - name: tflint (advisory)
-        uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4
         with:
           tflint_version: latest
-      # tflint is advisory: the AWS ruleset requires a .tflint.hcl and plugin
-      # init; without it only built-in Terraform language rules run. It does not
-      # gate the workflow.
-      - working-directory: terraform
+      - name: tflint --init (install aws ruleset)
+        working-directory: terraform
+        run: tflint --init
+      - name: tflint (blocking)
+        working-directory: terraform
         run: tflint --recursive
-        continue-on-error: true

@@ -1,9 +1,13 @@
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
 locals {
   module_tags = merge(var.tags, {
     Module = "logging"
   })
 
-  bucket_name = "${var.name_prefix}-firewall-logs"
+  bucket_name = "${var.name_prefix}-firewall-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
 
   # AWS Network Firewall allows each log_type (ALERT, FLOW) to be sent to ONE
   # destination, and a maximum of 2 log_destination_config blocks. When both

@@ -9,3 +9,11 @@
 - **Single Terraform root with environment tfvars**: avoids duplicated drift-prone compositions; environment differences are tfvars only. Production tfvars enable protection flags.
 - **Egress allowlist**: HTTP/HTTPS allowed only to `allowed-domains` (ALLOWLIST); broader egress is dropped.
 - **Documentation-only test destinations**: rules and tests use RFC 5737 TEST-NET ranges and example domains; no active malicious infrastructure.
+
+## Deployment-readiness hardening
+
+- Unauthorized external DNS is blocked on both UDP and TCP 53 (not just UDP).
+- GitHub Actions are pinned to immutable commit SHAs (not moving tags) for supply-chain integrity; TFLint is blocking with a committed `.tflint.hcl` and the AWS ruleset (static analysis, no AWS API deep checks).
+- The S3 log bucket name includes the AWS account ID and Region (resolved via `aws_caller_identity`/`aws_region` data sources, not hardcoded) to reduce global name collisions.
+- Firewall delete/subnet/policy change protection is enforced by variable validation when `environment == "production"`.
+- Each Terraform module declares its own `required_version` and `required_providers` (mirrors the root).

@@ -13,7 +13,7 @@ Allowed and blocked flows against the traffic-policy matrix. See
 | Shared services | Production | SSH | Allow | app->TGW->firewall->allow pass (sid 10000010) |
 | Production | Shared services | 514/tcp | Allow | allow pass (sid 10000011) |
 | Workloads | Shared services resolver | 53 udp/tcp | Allow | dns allow (sid 10000040/41) |
-| Workloads | External resolver | 53 udp | Block | deny drop (sid 10000023) |
+| Workloads | External resolver | 53 udp/tcp | Block | deny drop (sid 10000023/10000025) |
 | Any workload | blocked domain | HTTP/HTTPS | Block | blocked-domains DENYLIST (priority 50) |
 | Any workload | prohibited IP set | any | Block | deny drop (sid 10000024) + stateless drop |
 | Any VPC | unapproved cross-VPC | any | Block | stateful default drop_strict |

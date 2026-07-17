@@ -101,6 +101,7 @@ def test_expected_lab_rules_exist():
     assert "development to production ssh" in msgs, "expected a dev->prod SSH drop rule"
     assert "suspicious outbound" in msgs, "expected a suspicious-port alert rule"
     assert "dns to approved resolver" in msgs, "expected a DNS allow rule"
+    assert "unauthorized external dns" in msgs, "expected unauthorized external DNS blocks (UDP + TCP)"
 
 
 def test_rule_group_files_exist():

@@ -153,18 +153,33 @@ variable "firewall_delete_protection" {
   description = "Prevent the firewall from being deleted. Enable in production."
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.environment != "production" || var.firewall_delete_protection
+    error_message = "firewall_delete_protection must be true when environment is production."
+  }
 }
 
 variable "firewall_subnet_change_protection" {
   description = "Prevent firewall subnet mappings from being changed. Enable in production."
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.environment != "production" || var.firewall_subnet_change_protection
+    error_message = "firewall_subnet_change_protection must be true when environment is production."
+  }
 }
 
 variable "firewall_policy_change_protection" {
   description = "Prevent the attached firewall policy from being changed. Enable in production."
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.environment != "production" || var.firewall_policy_change_protection
+    error_message = "firewall_policy_change_protection must be true when environment is production."
+  }
 }
 # ----- Logging / monitoring -----
 

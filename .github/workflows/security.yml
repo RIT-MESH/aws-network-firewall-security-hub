@@ -16,15 +16,18 @@ jobs:
   iac-security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: checkov
-        uses: bridgecrewio/checkov-action@v12
+      - name: checkov (blocking)
+        uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # v12
         with:
           directory: terraform
           framework: terraform
           soft_fail: false
 
+      # Trivy is advisory: it reports IaC misconfigurations but does not gate CI,
+      # because Trivy rule severities and coverage differ from Checkov (which is
+      # the blocking IaC scanner). Review Trivy output in the run log.
       - name: trivy IaC (advisory)
         continue-on-error: true
         run: |
@@ -34,10 +37,10 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

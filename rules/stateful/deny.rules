@@ -32,9 +32,9 @@ drop tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 23 (
     rev: 1;
 )
 
-# Unauthorized external DNS resolver (workloads must use the approved resolver)
+# Unauthorized external DNS resolver over UDP (workloads must use the approved resolver)
 drop udp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 53 (
-    msg: "LAB unauthorized external DNS resolver blocked";
+    msg: "LAB unauthorized external DNS resolver blocked (UDP)";
     sid: 10000023;
     rev: 1;
 )
@@ -43,5 +43,13 @@ drop udp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 53 (
 drop ip $LAB_HOME_NET any -> $LAB_BLOCKED_DESTS any (
     msg: "LAB known prohibited destination IP set blocked";
     sid: 10000024;
+    rev: 1;
+)
+
+# Unauthorized external DNS resolver over TCP (DNS over TCP)
+drop tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 53 (
+    msg: "LAB unauthorized external DNS resolver blocked (TCP)";
+    flow: to_server;
+    sid: 10000025;
     rev: 1;
 )
