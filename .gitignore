@@ -71,3 +71,5 @@ tfplan.*
 tfplan-summary.txt
 terraform.tfvars
 terraform.tfvars.json
+# Terraform output evidence (never commit)
+outputs.json
