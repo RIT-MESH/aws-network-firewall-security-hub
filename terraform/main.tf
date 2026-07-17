@@ -144,6 +144,20 @@ module "firewall_policy" {
   blocked_destinations       = local.blocked_destinations
 }
 
+# ----- 3b. Logging (CloudWatch + S3 archival) -----
+
+module "logging" {
+  source = "./modules/logging"
+
+  name_prefix         = local.name_prefix
+  tags                = local.merged_tags
+  enable_cloudwatch   = var.enable_firewall_cloudwatch_logs
+  enable_s3_archival  = var.enable_firewall_s3_archival
+  log_retention_days  = var.firewall_log_retention_days
+  s3_standard_ia_days = var.firewall_s3_standard_ia_days
+  s3_glacier_days     = var.firewall_s3_glacier_days
+  s3_expiration_days  = var.firewall_s3_expiration_days
+}
 # ----- 4. AWS Network Firewall -----
 
 module "network_firewall" {
@@ -160,8 +174,7 @@ module "network_firewall" {
   firewall_policy_change_protection = var.firewall_policy_change_protection
   tags                              = local.merged_tags
 
-  # Log destinations are wired in Phase 5.
-  logging_destinations = []
+  logging_destinations = module.logging.firewall_log_destinations
 }
 
 # ----- 5. Inspection routing (NAT + centralized route entries) -----
@@ -197,4 +210,20 @@ module "inspection_routing" {
   # Phase 4: wire the per-AZ firewall endpoint default routes.
   firewall_routes_enabled = true
   firewall_endpoint_ids   = module.network_firewall.endpoint_ids
+}
+
+# ----- 6. Monitoring (dashboard, metric filters, alarms) -----
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  name_prefix              = local.name_prefix
+  aws_region               = var.aws_region
+  tags                     = local.merged_tags
+  firewall_name            = "${local.name_prefix}-firewall"
+  alert_log_group_name     = module.logging.alert_log_group_name
+  flow_log_group_name      = module.logging.flow_log_group_name
+  enable_sns               = var.enable_monitoring_sns
+  alert_volume_threshold   = var.firewall_alert_volume_threshold
+  dropped_packet_threshold = var.firewall_dropped_packet_threshold
 }

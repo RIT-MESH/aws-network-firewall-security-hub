@@ -146,3 +146,36 @@ output "stateful_rule_group_arns" {
   description = "Map of stateful rule group name -> ARN."
   value       = module.firewall_policy.stateful_rule_group_arns
 }
+# ----- Logging outputs -----
+
+output "firewall_alert_log_group_name" {
+  description = "CloudWatch log group for firewall ALERT logs, or null when disabled."
+  value       = module.logging.alert_log_group_name
+}
+
+output "firewall_flow_log_group_name" {
+  description = "CloudWatch log group for firewall FLOW logs, or null when disabled."
+  value       = module.logging.flow_log_group_name
+}
+
+output "firewall_log_bucket_name" {
+  description = "S3 bucket name for firewall log archival, or null when disabled."
+  value       = module.logging.s3_bucket_name
+}
+
+output "firewall_log_bucket_arn" {
+  description = "S3 bucket ARN for firewall log archival, or null when disabled."
+  value       = module.logging.s3_bucket_arn
+}
+
+# ----- Monitoring outputs -----
+
+output "firewall_dashboard_name" {
+  description = "Name of the CloudWatch firewall dashboard."
+  value       = module.monitoring.dashboard_name
+}
+
+output "firewall_alarm_sns_topic_arn" {
+  description = "ARN of the SNS alarm topic, or null when SNS is disabled."
+  value       = module.monitoring.sns_topic_arn
+}

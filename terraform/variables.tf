@@ -166,3 +166,63 @@ variable "firewall_policy_change_protection" {
   type        = bool
   default     = false
 }
+# ----- Logging / monitoring -----
+
+variable "firewall_log_retention_days" {
+  description = "Retention in days for CloudWatch firewall log groups."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557], var.firewall_log_retention_days)
+    error_message = "firewall_log_retention_days must be a supported CloudWatch Logs retention value."
+  }
+}
+
+variable "enable_firewall_cloudwatch_logs" {
+  description = "Send firewall ALERT and FLOW logs to CloudWatch Logs."
+  type        = bool
+  default     = true
+}
+
+variable "enable_firewall_s3_archival" {
+  description = "Send firewall ALERT and FLOW logs to an encrypted S3 bucket for archival."
+  type        = bool
+  default     = true
+}
+
+variable "firewall_s3_standard_ia_days" {
+  description = "Days before firewall log objects transition to S3 Standard-IA."
+  type        = number
+  default     = 30
+}
+
+variable "firewall_s3_glacier_days" {
+  description = "Days before firewall log objects transition to S3 Glacier Deep Archive."
+  type        = number
+  default     = 90
+}
+
+variable "firewall_s3_expiration_days" {
+  description = "Days before firewall log objects expire. 0 disables expiration."
+  type        = number
+  default     = 365
+}
+
+variable "enable_monitoring_sns" {
+  description = "Create an SNS topic for CloudWatch alarm notifications."
+  type        = bool
+  default     = false
+}
+
+variable "firewall_alert_volume_threshold" {
+  description = "Firewall alerts per 5-minute period that triggers an alarm."
+  type        = number
+  default     = 100
+}
+
+variable "firewall_dropped_packet_threshold" {
+  description = "Dropped packets per 5-minute period that triggers an alarm."
+  type        = number
+  default     = 500
+}

@@ -2,13 +2,14 @@
 
 Operational and project documentation index.
 
-TODO (Phase 7): add the following documents.
+## Documents
 
-- `deployment-guide.md`
-- `validation-guide.md`
-- `operations-runbook.md`
-- `incident-response-playbook.md`
-- `cost-considerations.md`
-- `security-decisions.md`
-- `limitations.md`
-- `portfolio-demo.md`
+- `firewall-logging.md` - firewall log fields, destinations, monitoring, troubleshooting (Phase 5)
+- `deployment-guide.md` - TODO Phase 7
+- `validation-guide.md` - TODO Phase 7
+- `operations-runbook.md` - TODO Phase 7
+- `incident-response-playbook.md` - TODO Phase 7
+- `cost-considerations.md` - TODO Phase 7
+- `security-decisions.md` - TODO Phase 7
+- `limitations.md` - TODO Phase 7
+- `portfolio-demo.md` - TODO Phase 7

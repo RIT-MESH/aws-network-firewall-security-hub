@@ -9,3 +9,14 @@ additional_tags = {
   CostCenter      = "prod-security-5678"
   Confidentiality = "restricted"
 }
+
+# Harden the firewall in production.
+firewall_delete_protection           = true
+firewall_subnet_change_protection    = true
+firewall_policy_change_protection    = true
+stateful_rule_order                  = "STRICT_ORDER"
+
+# Logging and monitoring.
+enable_firewall_cloudwatch_logs = true
+enable_firewall_s3_archival     = true
+firewall_log_retention_days     = 90
