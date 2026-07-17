@@ -103,6 +103,7 @@ flowchart TB
 ### Packet paths
 
 **Egress (workload → internet):**
+
 1. Workload app subnet → 0.0.0.0/0 → TGW
 2. TGW workload route table → 0.0.0.0/0 → inspection attachment
 3. Inspection TGW subnet → 0.0.0.0/0 → per-AZ firewall endpoint
@@ -111,6 +112,7 @@ flowchart TB
 6. NAT → public subnet → IGW → Internet
 
 **Cross-VPC (e.g., production → shared services):**
+
 1. Production app → TGW → inspection → firewall
 2. Firewall inspects; firewall subnet → spoke CIDR → TGW → shared services
 
