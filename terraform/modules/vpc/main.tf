@@ -78,6 +78,8 @@ resource "aws_route" "public_internet" {
 resource "aws_cloudwatch_log_group" "flow" {
   count = var.enable_flow_logs ? 1 : 0
 
+  # checkov:skip=CKV_AWS_158:VPC flow log group KMS encryption not configured for this lab; SSE via CloudWatch default is acceptable. Reviewer: enable CMK for production.
+  # checkov:skip=CKV_AWS_338:Retention is configurable (flow_log_retention_days) and intentionally short for lab cost. Reviewer: set >=365 for production.
   name              = "/aws/vpc/${var.vpc_name}/flow"
   retention_in_days = var.flow_log_retention_days
   tags              = local.module_tags

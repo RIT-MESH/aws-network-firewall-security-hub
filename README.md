@@ -6,7 +6,7 @@ Firewall**, **AWS Transit Gateway**, multiple Amazon VPCs, **Terraform**,
 Suricata-compatible IPS rules, **CloudWatch**, **Amazon S3**, automated pytest
 suites, and **GitHub Actions**.
 
-> **Deployment status:** Designed and statically validated. This project has
+> **Deployment status:** Deployed to AWS (runtime validation partial). SSM verified via PrivateLink. Centralized inspection routing has a runtime defect (0 packets to firewall). This project has
 > **not** been deployed or traffic-tested in AWS yet. Use "deployed and
 > validated" only after capturing real deployment and test evidence.
 

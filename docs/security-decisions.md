@@ -12,8 +12,20 @@
 
 ## Deployment-readiness hardening
 
-- Unauthorized external DNS is blocked on both UDP and TCP 53 (not just UDP).
-- GitHub Actions are pinned to immutable commit SHAs (not moving tags) for supply-chain integrity; TFLint is blocking with a committed `.tflint.hcl` and the AWS ruleset (static analysis, no AWS API deep checks).
-- The S3 log bucket name includes the AWS account ID and Region (resolved via `aws_caller_identity`/`aws_region` data sources, not hardcoded) to reduce global name collisions.
-- Firewall delete/subnet/policy change protection is enforced by variable validation when `environment == "production"`.
-- Each Terraform module declares its own `required_version` and `required_providers` (mirrors the root).
+- Unauthorized external DNS is blocked on both UDP and TCP 53.
+- GitHub Actions pinned to immutable commit SHAs; TFLint blocking with .tflint.hcl + AWS ruleset.
+- S3 log bucket name includes account ID + Region (via data sources) for global uniqueness.
+- Firewall protection enforced by check block when environment == production.
+- Each Terraform module declares required_version + required_providers.
+- SSM VPC endpoints (PrivateLink) deployed in workload VPCs so management traffic stays on AWS backbone (does not traverse firewall/NAT).
+- CloudWatch Logs resource policy uses delivery.logs.amazonaws.com principal (verified via AWS API).
+- NFW log destinations use camelCase keys (logGroup/bucketName) per AWS API.
+- S3 log delivery uses SSE-S3 (AWS-managed KMS key blocks log delivery without a CMK key policy).
+- Suricata rules are single-line (AWS NFW requirement).
+
+## Runtime findings
+
+- SSM access: resolved via PrivateLink (3/3 instances managed).
+- Centralized inspection routing: defect — firewall receives 0 packets despite correct config. Requires VPC flow logs debugging.
+- CloudWatch ALERT log delivery: log stream created (delivery path works).
+- S3 FLOW log delivery: no objects observed (no traffic reaching firewall).
