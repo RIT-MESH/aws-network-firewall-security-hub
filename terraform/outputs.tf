@@ -195,3 +195,23 @@ output "test_workloads_enabled" {
   description = "Whether test workloads are enabled."
   value       = module.test_workloads.enabled
 }
+
+# ----- SSM VPC endpoint outputs -----
+
+output "ssm_endpoint_ids" {
+  description = "Map of workload VPC -> (SSM service -> endpoint ID). Endpoint IDs are account-specific; do not publish in public docs."
+  value = {
+    production      = module.ssm_endpoints_production.endpoint_ids
+    development     = module.ssm_endpoints_development.endpoint_ids
+    shared_services = module.ssm_endpoints_shared_services.endpoint_ids
+  }
+}
+
+output "ssm_endpoint_security_group_ids" {
+  description = "Map of workload VPC -> endpoint security group ID."
+  value = {
+    production      = module.ssm_endpoints_production.security_group_id
+    development     = module.ssm_endpoints_development.security_group_id
+    shared_services = module.ssm_endpoints_shared_services.security_group_id
+  }
+}

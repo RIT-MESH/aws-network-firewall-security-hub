@@ -265,3 +265,38 @@ check "production_firewall_protections" {
     error_message = "Firewall delete, subnet-change, and policy-change protection must all be enabled when environment is production."
   }
 }
+
+# ----- 8. SSM VPC endpoints (PrivateLink) for test-instance management -----
+
+module "ssm_endpoints_production" {
+  source = "./modules/ssm-vpc-endpoints"
+
+  name_prefix        = "${local.name_prefix}-prod"
+  vpc_id             = module.production_vpc.vpc_id
+  vpc_cidr           = var.production_vpc_cidr
+  private_subnet_ids = module.production_vpc.subnet_ids_by_purpose["app"]
+  region             = var.aws_region
+  tags               = local.merged_tags
+}
+
+module "ssm_endpoints_development" {
+  source = "./modules/ssm-vpc-endpoints"
+
+  name_prefix        = "${local.name_prefix}-dev"
+  vpc_id             = module.development_vpc.vpc_id
+  vpc_cidr           = var.development_vpc_cidr
+  private_subnet_ids = module.development_vpc.subnet_ids_by_purpose["app"]
+  region             = var.aws_region
+  tags               = local.merged_tags
+}
+
+module "ssm_endpoints_shared_services" {
+  source = "./modules/ssm-vpc-endpoints"
+
+  name_prefix        = "${local.name_prefix}-shared"
+  vpc_id             = module.shared_services_vpc.vpc_id
+  vpc_cidr           = var.shared_services_vpc_cidr
+  private_subnet_ids = module.shared_services_vpc.subnet_ids_by_purpose["shared"]
+  region             = var.aws_region
+  tags               = local.merged_tags
+}
