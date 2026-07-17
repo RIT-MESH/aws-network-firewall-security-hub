@@ -1,0 +1,11 @@
+# Minimal lab example: HA inspection across 2 AZs with test workloads disabled.
+# Deploy from terraform/ with: terraform init && terraform apply
+
+environment             = "lab"
+owner                   = "platform-team"
+aws_region              = "us-east-1"
+availability_zone_count = 2
+
+enable_test_workloads         = false
+enable_firewall_s3_archival   = true
+enable_monitoring_sns         = false

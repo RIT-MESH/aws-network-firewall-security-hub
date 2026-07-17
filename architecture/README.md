@@ -5,10 +5,10 @@ documentation for the centralized AWS Network Firewall platform.
 
 ## Documents
 
-- `routing-design.md` - route tables and packet paths (Phase 3)
-- `architecture.md` - narrative architecture description (TODO Phase 7)
-- `security-boundaries.md` - trust boundaries and controls (TODO Phase 7)
-- `traffic-flows.md` - allowed/blocked flow walkthroughs (TODO Phase 7)
-- `diagrams/architecture.mmd` - Mermaid source diagram (TODO Phase 7)
+- `architecture.md` - narrative architecture description
+- `routing-design.md` - route tables and packet paths
+- `security-boundaries.md` - trust boundaries and controls
+- `traffic-flows.md` - allowed/blocked flow walkthroughs
+- `diagrams/architecture.mmd` - Mermaid source diagram
 
 The high-level target topology is summarized in the repository `README.md`.

@@ -1,8 +1,15 @@
 # Examples
 
-Reference compositions.
+Reference `terraform.tfvars` values for the single Terraform root at `terraform/`.
 
-- `minimal/` - smallest useful validated composition
-- `complete/` - full multi-VPC inspection architecture
+- `minimal/` - smallest useful HA configuration (2 AZs, test workloads off)
+- `complete/` - full logging, monitoring with SNS, and optional test workloads
 
-TODO (Phase 7): add example compositions with documentation.
+Copy a tfvars example to `terraform/terraform.tfvars`, adjust, then:
+
+```bash
+cd terraform
+terraform init
+terraform plan -out=tfplan   # review
+terraform apply tfplan       # explicit approval only
+```

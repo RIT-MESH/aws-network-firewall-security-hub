@@ -1,0 +1,33 @@
+flowchart TB
+    Internet((Internet))
+    IGW[Internet Gateway]
+    subgraph Insp["Inspection VPC - 2 AZs"]
+      direction TB
+      NAT[NAT Gateways x2]
+      NFW[Network Firewall x2 AZs]
+      FWRT[Firewall route tables per AZ]
+      TGWRT[TGW attach route tables per AZ]
+    end
+    TGW[Transit Gateway]
+
+    subgraph Prod["Production VPC - 2 AZs"]
+      PRODAPP[Private app subnets]
+    end
+    subgraph Dev["Development VPC - 2 AZs"]
+      DEVAPP[Private app subnets]
+    end
+    subgraph Shared["Shared Services VPC - 2 AZs"]
+      SHAPP[Private shared subnets]
+    end
+
+    PRODAPP -->|0.0.0.0/0| TGW
+    DEVAPP -->|0.0.0.0/0| TGW
+    SHAPP -->|0.0.0.0/0| TGW
+    TGW -->|workload rt default| TGWRT
+    TGWRT -->|0.0.0.0/0 per AZ| NFW
+    NFW --> FWRT
+    FWRT -->|0.0.0.0/0 per AZ| NAT
+    FWRT -.->|spoke CIDRs| TGW
+    NAT --> IGW
+    IGW --> Internet
+    Internet -.->|return via NAT, symmetric AZ| NAT
