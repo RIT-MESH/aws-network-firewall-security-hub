@@ -60,8 +60,8 @@ resource "aws_cloudwatch_log_resource_policy" "firewall" {
         "logs:PutLogEvents",
       ]
       Resource = concat(
-        local.alert_to_cw ? [aws_cloudwatch_log_group.alert[0].arn] : [],
-        local.flow_to_cw ? [aws_cloudwatch_log_group.flow[0].arn] : [],
+        local.alert_to_cw ? ["${aws_cloudwatch_log_group.alert[0].arn}:*"] : [],
+        local.flow_to_cw ? ["${aws_cloudwatch_log_group.flow[0].arn}:*"] : [],
       )
     }]
   })

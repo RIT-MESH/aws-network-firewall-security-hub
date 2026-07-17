@@ -102,8 +102,12 @@ def test_aws_provider_is_pinned():
 # ----- leak / anti-pattern guards -----
 
 def test_no_committed_tfstate_or_tfplan():
-    offenders = [p.name for p in _iter_repo_files() if re.search(r"\.tfstate(\.|$)|\.tfplan(\.|$)", p.name)]
-    assert not offenders, f"tfstate/tfplan files present: {offenders}"
+    # Check only git-tracked files (state/plan files may exist locally after a
+    # real apply but must never be committed; they are gitignored).
+    import subprocess
+    tracked = subprocess.check_output(["git", "ls-files"], cwd=REPO_ROOT, text=True).splitlines()
+    offenders = [f for f in tracked if re.search(r"\.tfstate(\.|$)|\.tfplan(\.|$)", f)]
+    assert not offenders, f"tfstate/tfplan files tracked: {offenders}"
 
 
 def test_no_forbidden_patterns_in_repo():
