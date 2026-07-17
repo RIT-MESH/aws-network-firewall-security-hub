@@ -226,3 +226,21 @@ variable "firewall_dropped_packet_threshold" {
   type        = number
   default     = 500
 }
+# ----- Test workloads (Phase 6) -----
+
+variable "enable_test_workloads" {
+  description = "Create optional private test instances for traffic validation. Disabled by default to avoid cost."
+  type        = bool
+  default     = false
+}
+
+variable "test_instance_type" {
+  description = "EC2 instance type for optional test workloads. Keep small for cost."
+  type        = string
+  default     = "t3.micro"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+\\.[a-z0-9]+$", var.test_instance_type))
+    error_message = "test_instance_type must be a valid EC2 instance type (e.g., t3.micro)."
+  }
+}

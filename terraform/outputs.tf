@@ -179,3 +179,19 @@ output "firewall_alarm_sns_topic_arn" {
   description = "ARN of the SNS alarm topic, or null when SNS is disabled."
   value       = module.monitoring.sns_topic_arn
 }
+# ----- Test workload outputs -----
+
+output "test_instance_ids" {
+  description = "Map of test instance key -> instance ID. Empty when test workloads are disabled."
+  value       = module.test_workloads.instance_ids
+}
+
+output "test_instance_private_ips" {
+  description = "Map of test instance key -> private IP. Empty when test workloads are disabled."
+  value       = module.test_workloads.instance_private_ips
+}
+
+output "test_workloads_enabled" {
+  description = "Whether test workloads are enabled."
+  value       = module.test_workloads.enabled
+}

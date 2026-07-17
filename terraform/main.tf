@@ -227,3 +227,32 @@ module "monitoring" {
   alert_volume_threshold   = var.firewall_alert_volume_threshold
   dropped_packet_threshold = var.firewall_dropped_packet_threshold
 }
+
+# ----- 7. Optional test workloads -----
+
+module "test_workloads" {
+  source = "./modules/test-workload"
+
+  name_prefix   = local.name_prefix
+  tags          = local.merged_tags
+  enabled       = var.enable_test_workloads
+  instance_type = var.test_instance_type
+
+  instances = {
+    production = {
+      name      = "prod-test"
+      subnet_id = module.production_vpc.subnet_ids_by_purpose["app"][0]
+      vpc_id    = module.production_vpc.vpc_id
+    }
+    development = {
+      name      = "dev-test"
+      subnet_id = module.development_vpc.subnet_ids_by_purpose["app"][0]
+      vpc_id    = module.development_vpc.vpc_id
+    }
+    shared_services = {
+      name      = "shared-test"
+      subnet_id = module.shared_services_vpc.subnet_ids_by_purpose["shared"][0]
+      vpc_id    = module.shared_services_vpc.vpc_id
+    }
+  }
+}
