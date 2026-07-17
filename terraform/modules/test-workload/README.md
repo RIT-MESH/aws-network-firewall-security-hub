@@ -1,4 +1,4 @@
-﻿# Module: test-workload
+# Module: test-workload
 
 Optional low-cost private test workloads. No public IPs, SSM preferred over public SSH, minimal configurable instance type, least-privilege IAM, encrypted root volume, IMDSv2 required, minimal security group, and a toggle to disable all test instances. Never stores SSH private keys.
 

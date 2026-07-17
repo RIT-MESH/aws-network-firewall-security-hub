@@ -1,4 +1,4 @@
-﻿# Lab environment
+# Lab environment
 
 Lower-cost reference composition for the centralized AWS Network Firewall
 platform. This is the default environment for portfolio demonstration and

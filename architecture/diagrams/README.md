@@ -1,4 +1,4 @@
-﻿# Diagrams
+# Diagrams
 
 Mermaid and any exported diagram sources live here.
 

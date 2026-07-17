@@ -1,4 +1,4 @@
-﻿# Example variable values for the lab environment.
+# Example variable values for the lab environment.
 # Copy to terraform.tfvars and adjust. Never commit real terraform.tfvars.
 
 environment             = "lab"

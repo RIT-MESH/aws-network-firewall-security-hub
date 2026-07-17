@@ -1,4 +1,4 @@
-﻿# Tests
+# Tests
 
 pytest suites for repository-level validation.
 

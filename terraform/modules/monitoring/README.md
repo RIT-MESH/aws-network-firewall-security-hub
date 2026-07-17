@@ -1,4 +1,4 @@
-﻿# Module: monitoring
+# Module: monitoring
 
 CloudWatch dashboard, metric filters where supported, alarms for alert volume, dropped-traffic spikes, and logging-delivery problems, and an optional SNS notification topic.
 

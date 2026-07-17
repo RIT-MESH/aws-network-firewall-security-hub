@@ -1,4 +1,4 @@
-﻿# Pre-commit hooks for the AWS Network Firewall Security Hub repository.
+# Pre-commit hooks for the AWS Network Firewall Security Hub repository.
 # Install pre-commit (https://pre-commit.com) then run:
 #   pre-commit install
 #   pre-commit run --all-files

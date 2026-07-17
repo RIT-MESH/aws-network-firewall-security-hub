@@ -1,4 +1,4 @@
-﻿# Enforce consistent line endings and binary handling across platforms/CI.
+# Enforce consistent line endings and binary handling across platforms/CI.
 # The Makefile, shell scripts, and Python files require LF line endings.
 
 * text=auto eol=lf

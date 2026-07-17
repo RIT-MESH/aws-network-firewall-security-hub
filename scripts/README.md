@@ -1,4 +1,4 @@
-﻿# Scripts
+# Scripts
 
 Operational and validation scripts.
 

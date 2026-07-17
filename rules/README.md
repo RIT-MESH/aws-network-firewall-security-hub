@@ -1,4 +1,4 @@
-﻿# Rules
+# Rules
 
 AWS Network Firewall rule artifacts.
 

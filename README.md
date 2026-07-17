@@ -1,4 +1,4 @@
-﻿# AWS Network Firewall Security Hub
+# AWS Network Firewall Security Hub
 
 A deployment-ready, statically validated reference implementation of a centralized multi-VPC AWS network-security platform built with **AWS Network Firewall**, **AWS Transit Gateway**, **Terraform**, **Suricata-compatible IPS rules**, **CloudWatch**, **Amazon S3**, automated testing, and **GitHub Actions**.
 

@@ -1,4 +1,4 @@
-﻿.RECIPEPREFIX := >
+.RECIPEPREFIX := >
 .DEFAULT_GOAL := help
 SHELL := /usr/bin/env bash
 

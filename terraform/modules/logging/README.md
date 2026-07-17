@@ -1,4 +1,4 @@
-﻿# Module: logging
+# Module: logging
 
 Network Firewall flow and alert logging to CloudWatch, encrypted S3 archival with public access blocked, lifecycle rules, configurable retention, and least-privilege access policies.
 

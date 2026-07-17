@@ -1,4 +1,4 @@
-﻿# Documentation
+# Documentation
 
 Operational and project documentation index.
 

@@ -1,4 +1,4 @@
-﻿# Module: inspection-routing
+# Module: inspection-routing
 
 Security-critical routing module. Routes workload default traffic to Transit Gateway, Transit Gateway traffic to the inspection VPC, inspected outbound traffic to NAT Gateway, and return traffic through the same firewall path. Prevents direct workload internet paths and preserves symmetric routing. Every non-obvious route is commented.
 

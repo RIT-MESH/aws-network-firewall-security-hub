@@ -1,4 +1,4 @@
-﻿# Module: firewall-policy
+# Module: firewall-policy
 
 Firewall policy and rule groups: stateless default actions, stateless rule groups, stateful Suricata rule groups (loaded from repository files), domain-list rule groups, IP-set references, strict stateful evaluation order where used, and rule capacity. Clearly separates pass, drop, reject, and alert rules and documents evaluation order.
 

@@ -1,4 +1,4 @@
-﻿# GitHub configuration
+# GitHub configuration
 
 GitHub Actions workflows and issue/PR templates are added in Phase 7.
 

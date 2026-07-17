@@ -1,4 +1,4 @@
-﻿# Module: vpc
+# Module: vpc
 
 A reusable VPC module supporting VPC CIDR, name, environment, Availability Zones, and map-based definitions for private, firewall, Transit Gateway, and (when required) public subnets. Does not assume every VPC needs every subnet type. Optional VPC flow logs. Consistent tagging.
 

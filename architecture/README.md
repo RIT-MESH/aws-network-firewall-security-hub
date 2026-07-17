@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 Target architecture, routing design, security boundaries, and traffic-flow
 documentation for the centralized AWS Network Firewall platform.

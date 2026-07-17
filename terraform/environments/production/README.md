@@ -1,4 +1,4 @@
-﻿# Production environment
+# Production environment
 
 Production-style composition with protection flags enabled by default (firewall
 delete protection, subnet-change protection, and firewall-policy-change

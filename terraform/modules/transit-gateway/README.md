@@ -1,4 +1,4 @@
-﻿# Module: transit-gateway
+# Module: transit-gateway
 
 Transit Gateway creation, VPC attachments, appliance mode where required for symmetric inspection, explicit route-table association/propagation controls, explicit route tables, and blackhole routes where justified. Creates separate workload, inspection, and shared-services routing domains.
 
