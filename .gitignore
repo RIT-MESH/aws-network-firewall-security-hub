@@ -64,3 +64,10 @@ logs/
 # Build / coverage artifacts
 dist/
 build/
+
+# Plans and environment tfvars (never commit)
+tfplan
+tfplan.*
+tfplan-summary.txt
+terraform.tfvars
+terraform.tfvars.json

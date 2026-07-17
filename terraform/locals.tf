@@ -71,7 +71,7 @@ locals {
   workload_default_route_table_ids = concat(
     module.production_vpc.route_table_ids_by_purpose["app"],
     module.development_vpc.route_table_ids_by_purpose["app"],
-    module.shared_services_vpc.route_table_ids_by_purpose["app"],
+    module.shared_services_vpc.route_table_ids_by_purpose["shared"],
   )
 
   # ----- Phase 4 firewall helpers -----

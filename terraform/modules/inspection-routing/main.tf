@@ -41,10 +41,12 @@ resource "aws_nat_gateway" "this" {
 
 # ----- Workload app subnet default route -> Transit Gateway -----
 
+# count (not for_each) because the route table IDs are unknown until apply;
+# the list length is statically known, so count is deterministic at plan time.
 resource "aws_route" "workload_default_to_tgw" {
-  for_each = toset(var.workload_default_route_table_ids)
+  count = length(var.workload_default_route_table_ids)
 
-  route_table_id         = each.value
+  route_table_id         = var.workload_default_route_table_ids[count.index]
   destination_cidr_block = "0.0.0.0/0"
   transit_gateway_id     = var.transit_gateway_id
 }

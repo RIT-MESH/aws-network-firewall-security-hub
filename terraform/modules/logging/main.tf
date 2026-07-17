@@ -4,12 +4,21 @@ locals {
   })
 
   bucket_name = "${var.name_prefix}-firewall-logs"
+
+  # AWS Network Firewall allows each log_type (ALERT, FLOW) to be sent to ONE
+  # destination, and a maximum of 2 log_destination_config blocks. When both
+  # CloudWatch and S3 are enabled, send ALERT -> CloudWatch (operational alerts
+  # + metric filters) and FLOW -> S3 (long-term archival of high-volume flows).
+  alert_to_cw = var.enable_cloudwatch
+  flow_to_cw  = var.enable_cloudwatch && !var.enable_s3_archival
+  alert_to_s3 = var.enable_s3_archival && !var.enable_cloudwatch
+  flow_to_s3  = var.enable_s3_archival
 }
 
-# ----- CloudWatch Logs groups -----
+# ----- CloudWatch Logs groups (only for log types routed to CloudWatch) -----
 
 resource "aws_cloudwatch_log_group" "alert" {
-  count = var.enable_cloudwatch ? 1 : 0
+  count = local.alert_to_cw ? 1 : 0
 
   # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
   # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
@@ -19,7 +28,7 @@ resource "aws_cloudwatch_log_group" "alert" {
 }
 
 resource "aws_cloudwatch_log_group" "flow" {
-  count = var.enable_cloudwatch ? 1 : 0
+  count = local.flow_to_cw ? 1 : 0
 
   # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
   # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
@@ -30,7 +39,7 @@ resource "aws_cloudwatch_log_group" "flow" {
 
 # CloudWatch Logs resource policy allowing AWS Network Firewall to write logs.
 resource "aws_cloudwatch_log_resource_policy" "firewall" {
-  count = var.enable_cloudwatch ? 1 : 0
+  count = (local.alert_to_cw || local.flow_to_cw) ? 1 : 0
 
   policy_name = "${var.name_prefix}-firewall-cw-resource-policy"
 
@@ -46,10 +55,10 @@ resource "aws_cloudwatch_log_resource_policy" "firewall" {
         "logs:DescribeLogStreams",
         "logs:PutLogEvents",
       ]
-      Resource = [
-        aws_cloudwatch_log_group.alert[0].arn,
-        aws_cloudwatch_log_group.flow[0].arn,
-      ]
+      Resource = concat(
+        local.alert_to_cw ? [aws_cloudwatch_log_group.alert[0].arn] : [],
+        local.flow_to_cw ? [aws_cloudwatch_log_group.flow[0].arn] : [],
+      )
     }]
   })
 }

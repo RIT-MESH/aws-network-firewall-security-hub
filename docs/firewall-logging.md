@@ -92,3 +92,19 @@ S3 bucket (archival) by default. Both can be disabled independently.
   confirmation.
 - The logging-delivery alarm is not implemented because AWS does not expose a
   reliable built-in metric for it; monitor via CloudWatch Logs Insights instead.
+
+## AWS Network Firewall logging destination limits
+
+AWS Network Firewall allows each log type (`ALERT`, `FLOW`) to be sent to **one**
+destination, with a maximum of **2** `log_destination_config` blocks per firewall.
+You cannot send the same log type to both CloudWatch and S3.
+
+This module therefore routes (when both CloudWatch and S3 are enabled):
+- `ALERT` -> CloudWatch Logs (operational alerts + CloudWatch metric filter)
+- `FLOW` -> S3 (long-term encrypted archival of high-volume flow logs)
+
+When only CloudWatch is enabled, both `ALERT` and `FLOW` go to CloudWatch. When
+only S3 is enabled, both go to S3. The CloudWatch dashboard uses AWS Network
+Firewall service metrics (`AWS/Network-Firewall`) which are independent of log
+destination, so dashboard widgets work in all modes. The `FirewallDroppedFlowCount`
+log metric filter is only created when `FLOW` is routed to CloudWatch.
