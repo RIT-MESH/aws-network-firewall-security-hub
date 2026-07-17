@@ -100,6 +100,7 @@ destination, with a maximum of **2** `log_destination_config` blocks per firewal
 You cannot send the same log type to both CloudWatch and S3.
 
 This module therefore routes (when both CloudWatch and S3 are enabled):
+
 - `ALERT` -> CloudWatch Logs (operational alerts + CloudWatch metric filter)
 - `FLOW` -> S3 (long-term encrypted archival of high-volume flow logs)
 
