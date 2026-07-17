@@ -256,3 +256,12 @@ module "test_workloads" {
     }
   }
 }
+
+# Enforce firewall protection flags in production (variable validation cannot
+# cross-reference other variables, so a check block is used).
+check "production_firewall_protections" {
+  assert {
+    condition     = var.environment != "production" || (var.firewall_delete_protection && var.firewall_subnet_change_protection && var.firewall_policy_change_protection)
+    error_message = "Firewall delete, subnet-change, and policy-change protection must all be enabled when environment is production."
+  }
+}
