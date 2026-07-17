@@ -1,0 +1,51 @@
+﻿# Pre-commit hooks for the AWS Network Firewall Security Hub repository.
+# Install pre-commit (https://pre-commit.com) then run:
+#   pre-commit install
+#   pre-commit run --all-files
+# Hooks are pinned to reviewed versions. Missing system tools (terraform,
+# shellcheck, yamllint, markdownlint) are reported by their hooks but do not
+# break unrelated hooks.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      - id: check-case-conflict
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.89.1
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+          - --args=-no-color
+      # tflint hook is intentionally left to be enabled per-environment once a
+      # .tflint.hcl is added (Phase 2+).
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: [--external-sources]
+        files: ^scripts/.*\.sh$
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: [--strict]
+        files: \.(yml|yaml)$
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.41.0
+    hooks:
+      - id: markdownlint
+        args: [--fix=false]

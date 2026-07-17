@@ -1,0 +1,11 @@
+﻿# Example variable values for the production environment.
+# Copy to terraform.tfvars and adjust. Never commit real terraform.tfvars.
+
+environment             = "production"
+owner                   = "platform-team"
+aws_region              = "us-east-1"
+availability_zone_count = 2
+additional_tags = {
+  CostCenter      = "prod-security-5678"
+  Confidentiality = "restricted"
+}

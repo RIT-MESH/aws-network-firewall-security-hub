@@ -1,0 +1,66 @@
+﻿# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate.backup
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Keep example tfvars files tracked
+!*.auto.tfvars.example
+!terraform.tfvars.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+
+# Secrets / credentials — never commit
+*.pem
+*.key
+*.ppk
+id_rsa
+id_ed25519
+*.p12
+*.pfx
+.aws/
+.env
+.env.*
+secrets.tf
+*.secret
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Build / coverage artifacts
+dist/
+build/
