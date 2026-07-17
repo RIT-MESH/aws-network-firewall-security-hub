@@ -53,7 +53,7 @@ S3 bucket (archival) by default. Both can be disabled independently.
 ## S3 archival
 
 - Bucket: `anfw-<environment>-firewall-logs`
-- Server-side encryption (SSE-S3 AES256) enabled.
+- Server-side encryption (SSE-S3 AES256) enabled (KMS would require a log-delivery key policy; SSE-S3 keeps AWS log delivery working in the lab).
 - Public access fully blocked (`block_public_acls`, `block_public_policy`,
   `ignore_public_acls`, `restrict_public_buckets`).
 - Object ownership `BucketOwnerEnforced` (ACLs disabled).

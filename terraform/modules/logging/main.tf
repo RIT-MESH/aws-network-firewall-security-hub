@@ -24,7 +24,7 @@ data "aws_region" "current" {}
 resource "aws_cloudwatch_log_group" "alert" {
   count = local.alert_to_cw ? 1 : 0
 
-  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
+  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses SSE-S3 encryption at rest. Reviewer: enable CMK encryption for production.
   # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
   name              = "/aws/network-firewall/${var.name_prefix}/alert"
   retention_in_days = var.log_retention_days
@@ -34,7 +34,7 @@ resource "aws_cloudwatch_log_group" "alert" {
 resource "aws_cloudwatch_log_group" "flow" {
   count = local.flow_to_cw ? 1 : 0
 
-  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
+  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses SSE-S3 encryption at rest. Reviewer: enable CMK encryption for production.
   # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
   name              = "/aws/network-firewall/${var.name_prefix}/flow"
   retention_in_days = var.log_retention_days
@@ -73,6 +73,7 @@ resource "aws_s3_bucket" "logs" {
   # checkov:skip=CKV_AWS_18:S3 server access logging is not enabled on this log-archive target bucket; enabling access logging on a log bucket is redundant and noisy. Risk: no audit of bucket object access. Compensating control: CloudTrail/CloudWatch monitor bucket changes. Reviewer: enable access logging to a separate bucket for production.
   # checkov:skip=CKV_AWS_144:Cross-region replication is not required for a single-region lab log archive. Risk: regional data loss. Compensating control: versioning enabled; replicate manually for production. Reviewer: enable CRR for production durability.
   # checkov:skip=CKV2_AWS_62:S3 event notifications are not required; logs are analyzed offline by scripts/analyze-firewall-logs.py. Risk: no real-time notification. Compensating control: CloudWatch metric filters. Reviewer: enable event notifications if downstream automation is needed.
+  # checkov:skip=CKV_AWS_145:SSE-S3 AES256 encryption at rest is used so AWS log delivery can write without a KMS key policy. CMK with a delivery.logs.amazonaws.com key policy is a production hardening item. Reviewer: use a customer-managed KMS key with a log-delivery key policy for production.
 
   bucket = local.bucket_name
   tags   = merge(local.module_tags, { Name = local.bucket_name })
@@ -91,8 +92,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = "aws/s3"
+      sse_algorithm = "AES256"
     }
   }
 }
