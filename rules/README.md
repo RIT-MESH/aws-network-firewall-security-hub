@@ -17,7 +17,7 @@ specification for the centralized AWS Network Firewall.
 
 ## Rule variables
 
-Defined as firewall policy `policy_variables` (IP set definitions) and exposed
+Defined in each stateful rule group `rule_variables` (IP set definitions) and exposed
 to Suricata rules as `$<name>`:
 
 | Variable | Definition |

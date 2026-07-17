@@ -1,7 +1,3 @@
-data "aws_caller_identity" "current" {}
-
-data "aws_region" "current" {}
-
 locals {
   module_tags = merge(var.tags, {
     Module = "logging"
@@ -18,6 +14,10 @@ locals {
   alert_to_s3 = var.enable_s3_archival && !var.enable_cloudwatch
   flow_to_s3  = var.enable_s3_archival
 }
+
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
 
 # ----- CloudWatch Logs groups (only for log types routed to CloudWatch) -----
 
@@ -42,6 +42,8 @@ resource "aws_cloudwatch_log_group" "flow" {
 }
 
 # CloudWatch Logs resource policy allowing AWS Network Firewall to write logs.
+# CloudWatch Logs PutResourcePolicy requires Resource = "*" for service delivery
+# (resource-scoped ARNs are rejected with "Could not convert to persistable policy").
 resource "aws_cloudwatch_log_resource_policy" "firewall" {
   count = (local.alert_to_cw || local.flow_to_cw) ? 1 : 0
 
@@ -59,10 +61,7 @@ resource "aws_cloudwatch_log_resource_policy" "firewall" {
         "logs:DescribeLogStreams",
         "logs:PutLogEvents",
       ]
-      Resource = concat(
-        local.alert_to_cw ? ["${aws_cloudwatch_log_group.alert[0].arn}:*"] : [],
-        local.flow_to_cw ? ["${aws_cloudwatch_log_group.flow[0].arn}:*"] : [],
-      )
+      Resource = "*"
     }]
   })
 }

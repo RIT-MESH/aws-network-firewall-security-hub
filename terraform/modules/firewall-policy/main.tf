@@ -30,10 +30,15 @@ locals {
 }
 
 # ----- Stateful Suricata rule groups (allow / deny / alert / dns) -----
+#
+# AWS Network Firewall resolves $VAR references in rules_string from the rule
+# group's own rule_variables (not the firewall policy's policy_variables), so
+# the IP-set variables are declared here for each stateful rule group.
 
 resource "aws_networkfirewall_rule_group" "stateful" {
-  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
   for_each = var.stateful_rule_groups
+
+  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
   name     = "${var.name}-${each.key}"
   capacity = each.value.capacity
@@ -42,6 +47,24 @@ resource "aws_networkfirewall_rule_group" "stateful" {
   rule_group {
     rules_source {
       rules_string = each.value.rules
+    }
+
+    dynamic "rule_variables" {
+      for_each = length(var.rule_variables) > 0 ? [1] : []
+
+      content {
+        dynamic "ip_sets" {
+          for_each = var.rule_variables
+
+          content {
+            key = ip_sets.key
+
+            ip_set {
+              definition = ip_sets.value
+            }
+          }
+        }
+      }
     }
 
     stateful_rule_options {
@@ -55,8 +78,9 @@ resource "aws_networkfirewall_rule_group" "stateful" {
 # ----- Domain-list rule groups -----
 
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
   count = length(var.allowed_domains) > 0 ? 1 : 0
+
+  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
   name     = "${var.name}-allowed-domains"
   capacity = var.domain_rule_group_capacity
@@ -80,8 +104,9 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
 }
 
 resource "aws_networkfirewall_rule_group" "blocked_domains" {
-  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
   count = length(var.blocked_domains) > 0 ? 1 : 0
+
+  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
   name     = "${var.name}-blocked-domains"
   capacity = var.domain_rule_group_capacity
@@ -107,8 +132,9 @@ resource "aws_networkfirewall_rule_group" "blocked_domains" {
 # ----- Stateless drop rule group for blocked destination CIDRs -----
 
 resource "aws_networkfirewall_rule_group" "stateless_drop" {
-  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
   count = length(var.blocked_destinations) > 0 ? 1 : 0
+
+  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
   name     = "${var.name}-stateless-drop"
   capacity = var.stateless_rule_group_capacity
@@ -145,6 +171,7 @@ resource "aws_networkfirewall_rule_group" "stateless_drop" {
 
 resource "aws_networkfirewall_firewall_policy" "this" {
   # checkov:skip=CKV_AWS_346:Firewall policy encryption configuration uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
+
   name        = var.name
   description = var.description
   tags        = merge(local.module_tags, { Name = var.name })
@@ -156,24 +183,6 @@ resource "aws_networkfirewall_firewall_policy" "this" {
 
     stateful_engine_options {
       rule_order = var.stateful_rule_order
-    }
-
-    dynamic "policy_variables" {
-      for_each = length(var.rule_variables) > 0 ? [1] : []
-
-      content {
-        dynamic "rule_variables" {
-          for_each = var.rule_variables
-
-          content {
-            key = rule_variables.key
-
-            ip_set {
-              definition = rule_variables.value
-            }
-          }
-        }
-      }
     }
 
     # 5-tuple stateful groups (allow/deny/alert/dns)
