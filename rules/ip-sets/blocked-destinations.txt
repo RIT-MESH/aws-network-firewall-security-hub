@@ -1,0 +1,5 @@
+# Known prohibited destination CIDRs (documentation-only TEST-NET ranges per
+# RFC 5737). Never use real active malicious infrastructure.
+192.0.2.0/24
+198.51.100.0/24
+203.0.113.0/24

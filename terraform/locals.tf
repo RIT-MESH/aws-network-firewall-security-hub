@@ -73,4 +73,44 @@ locals {
     module.development_vpc.route_table_ids_by_purpose["app"],
     module.shared_services_vpc.route_table_ids_by_purpose["app"],
   )
+
+  # ----- Phase 4 firewall helpers -----
+
+  rules_dir = "${path.module}/../rules"
+
+  allow_rules = file("${local.rules_dir}/stateful/allow.rules")
+  deny_rules  = file("${local.rules_dir}/stateful/deny.rules")
+  alert_rules = file("${local.rules_dir}/stateful/alert.rules")
+  dns_rules   = file("${local.rules_dir}/stateful/dns.rules")
+
+  blocked_destinations = [
+    for l in split("\n", file("${local.rules_dir}/ip-sets/blocked-destinations.txt")) :
+    trimspace(l) if trimspace(l) != "" && substr(trimspace(l), 0, 1) != "#"
+  ]
+  allowed_domains = [
+    for l in split("\n", file("${local.rules_dir}/domain-lists/allowed-domains.txt")) :
+    trimspace(l) if trimspace(l) != "" && substr(trimspace(l), 0, 1) != "#"
+  ]
+  blocked_domains = [
+    for l in split("\n", file("${local.rules_dir}/domain-lists/blocked-domains.txt")) :
+    trimspace(l) if trimspace(l) != "" && substr(trimspace(l), 0, 1) != "#"
+  ]
+
+  rule_variables = {
+    LAB_HOME_NET      = [var.production_vpc_cidr, var.development_vpc_cidr, var.shared_services_vpc_cidr]
+    LAB_DEV_NET       = [var.development_vpc_cidr]
+    LAB_PROD_NET      = [var.production_vpc_cidr]
+    LAB_SHARED_NET    = [var.shared_services_vpc_cidr]
+    LAB_EXTERNAL_NET  = ["0.0.0.0/0"]
+    LAB_BLOCKED_DESTS = local.blocked_destinations
+  }
+
+  stateful_rule_groups = {
+    allow = { rules = local.allow_rules, capacity = var.stateful_rule_group_capacity }
+    deny  = { rules = local.deny_rules, capacity = var.stateful_rule_group_capacity }
+    alert = { rules = local.alert_rules, capacity = var.stateful_rule_group_capacity }
+    dns   = { rules = local.dns_rules, capacity = var.stateful_rule_group_capacity }
+  }
+
+  inspection_firewall_subnet_ids = module.inspection_vpc.subnet_ids_by_purpose["firewall"]
 }

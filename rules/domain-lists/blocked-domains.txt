@@ -1,0 +1,4 @@
+# Domains explicitly blocked (DENYLIST). Use documentation/example domains only.
+restricted.example.org
+malware-example.example
+blocklist-example.example

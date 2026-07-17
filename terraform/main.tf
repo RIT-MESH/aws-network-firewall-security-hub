@@ -3,10 +3,11 @@
 # Dependency order:
 #   1. VPCs (inspection, production, development, shared services)  [Phase 2]
 #   2. Transit Gateway and VPC attachments                         [Phase 3]
-#   3. Inspection routing (security-critical)                      [Phase 3]
-#   4. AWS Network Firewall and firewall policy                    [Phase 4]
-#   5. Logging and monitoring                                       [Phase 5]
-#   6. Optional test workloads                                      [Phase 6]
+#   3. Firewall policy + rule groups                                [Phase 4]
+#   4. AWS Network Firewall                                         [Phase 4]
+#   5. Inspection routing (NAT + centralized route entries)         [Phase 3/4]
+#   6. Logging and monitoring                                       [Phase 5]
+#   7. Optional test workloads                                      [Phase 6]
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -79,7 +80,7 @@ module "transit_gateway" {
     inspection = {
       vpc_id         = module.inspection_vpc.vpc_id
       subnet_ids     = module.inspection_vpc.subnet_ids_by_purpose["tgw"]
-      appliance_mode = true # required for symmetric inspection routing
+      appliance_mode = true
     }
     production = {
       vpc_id         = module.production_vpc.vpc_id
@@ -99,8 +100,6 @@ module "transit_gateway" {
   }
 
   route_tables = {
-    # Production + Development share the workload route table.
-    # Default route forces all egress/cross-VPC traffic to the inspection VPC.
     workload = {
       associations = ["production", "development"]
       propagations = []
@@ -110,7 +109,6 @@ module "transit_gateway" {
       blackhole_routes = []
     }
 
-    # Shared Services has its own routing domain but still defaults to inspection.
     shared_services = {
       associations = ["shared_services"]
       propagations = []
@@ -120,8 +118,6 @@ module "transit_gateway" {
       blackhole_routes = []
     }
 
-    # Inspection route table: spoke CIDRs propagate here so the inspection VPC
-    # knows how to return cross-VPC traffic to the correct spoke via the TGW.
     inspection = {
       associations     = ["inspection"]
       propagations     = ["production", "development", "shared_services"]
@@ -131,7 +127,44 @@ module "transit_gateway" {
   }
 }
 
-# ----- 3. Inspection routing (NAT + centralized route entries) -----
+# ----- 3. Firewall policy and rule groups -----
+
+module "firewall_policy" {
+  source = "./modules/firewall-policy"
+
+  name                       = "${local.name_prefix}-firewall-policy"
+  description                = "Centralized AWS Network Firewall policy for ${var.environment}"
+  tags                       = local.merged_tags
+  stateful_rule_order        = var.stateful_rule_order
+  rule_variables             = local.rule_variables
+  stateful_rule_groups       = local.stateful_rule_groups
+  allowed_domains            = local.allowed_domains
+  blocked_domains            = local.blocked_domains
+  domain_rule_group_capacity = var.domain_rule_group_capacity
+  blocked_destinations       = local.blocked_destinations
+}
+
+# ----- 4. AWS Network Firewall -----
+
+module "network_firewall" {
+  source = "./modules/network-firewall"
+
+  name                              = "${local.name_prefix}-firewall"
+  description                       = "Centralized AWS Network Firewall for ${var.environment}"
+  vpc_id                            = module.inspection_vpc.vpc_id
+  subnet_ids                        = local.inspection_firewall_subnet_ids
+  az_names                          = local.az_names
+  firewall_policy_arn               = module.firewall_policy.firewall_policy_arn
+  delete_protection                 = var.firewall_delete_protection
+  subnet_change_protection          = var.firewall_subnet_change_protection
+  firewall_policy_change_protection = var.firewall_policy_change_protection
+  tags                              = local.merged_tags
+
+  # Log destinations are wired in Phase 5.
+  logging_destinations = []
+}
+
+# ----- 5. Inspection routing (NAT + centralized route entries) -----
 
 module "inspection_routing" {
   source = "./modules/inspection-routing"
@@ -161,6 +194,7 @@ module "inspection_routing" {
 
   workload_default_route_table_ids = local.workload_default_route_table_ids
 
-  # Wired up in Phase 4 once the firewall endpoints exist.
-  firewall_endpoints = {}
+  # Phase 4: wire the per-AZ firewall endpoint default routes.
+  firewall_routes_enabled = true
+  firewall_endpoint_ids   = module.network_firewall.endpoint_ids
 }

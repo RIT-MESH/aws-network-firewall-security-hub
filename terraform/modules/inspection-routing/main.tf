@@ -14,6 +14,9 @@ locals {
       }
     ]
   ])
+
+  # Ordered list of inspection TGW route table IDs by AZ index (keys "0","1",...).
+  tgw_rt_order = [for k in sort(keys(var.inspection_tgw_route_table_ids)) : var.inspection_tgw_route_table_ids[k]]
 }
 
 # ----- NAT Gateways (centralized egress) -----
@@ -69,9 +72,9 @@ resource "aws_route" "firewall_to_tgw_spokes" {
 # ----- Inspection TGW attachment subnet default route -> per-AZ firewall endpoint -----
 
 resource "aws_route" "tgw_to_firewall" {
-  for_each = var.firewall_endpoints
+  count = var.firewall_routes_enabled ? length(local.tgw_rt_order) : 0
 
-  route_table_id         = var.inspection_tgw_route_table_ids[each.key]
+  route_table_id         = local.tgw_rt_order[count.index]
   destination_cidr_block = "0.0.0.0/0"
-  vpc_endpoint_id        = each.value
+  vpc_endpoint_id        = var.firewall_endpoint_ids[count.index]
 }

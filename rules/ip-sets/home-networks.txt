@@ -1,0 +1,6 @@
+# Workload network CIDRs (documentation mirror of the VPC CIDR variables).
+# These are NOT parsed by Terraform; the firewall policy rule variables are
+# derived from the VPC CIDR variables for single-source-of-truth.
+10.1.0.0/16
+10.2.0.0/16
+10.3.0.0/16

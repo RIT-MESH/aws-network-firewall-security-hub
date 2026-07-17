@@ -115,3 +115,34 @@ output "inspection_nat_gateway_public_ips" {
   value       = module.inspection_routing.nat_gateway_public_ips
   sensitive   = false
 }
+# ----- Firewall outputs -----
+
+output "firewall_arn" {
+  description = "ARN of the centralized AWS Network Firewall."
+  value       = module.network_firewall.firewall_arn
+}
+
+output "firewall_id" {
+  description = "ID of the centralized AWS Network Firewall."
+  value       = module.network_firewall.firewall_id
+}
+
+output "firewall_policy_arn" {
+  description = "ARN of the firewall policy attached to the firewall."
+  value       = module.network_firewall.firewall_policy_arn
+}
+
+output "firewall_policy_id" {
+  description = "ID of the firewall policy."
+  value       = module.firewall_policy.firewall_policy_id
+}
+
+output "firewall_endpoint_ids" {
+  description = "Network Firewall endpoint IDs ordered by AZ. Unknown until the firewall is applied."
+  value       = module.network_firewall.endpoint_ids
+}
+
+output "stateful_rule_group_arns" {
+  description = "Map of stateful rule group name -> ARN."
+  value       = module.firewall_policy.stateful_rule_group_arns
+}

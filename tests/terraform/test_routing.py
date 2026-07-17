@@ -85,7 +85,7 @@ def test_firewall_subnets_route_spokes_to_tgw():
 def test_tgw_attachment_subnet_routes_to_firewall_endpoint():
     text = _read(ROUTING_TF)
     assert _resource(text, "tgw_to_firewall")
-    assert re.search(r"vpc_endpoint_id\s*=\s*each\.value", text)
+    assert re.search(r"vpc_endpoint_id\s*=\s*var\.firewall_endpoint_ids\[count\.index\]", text)
 
 
 def test_spoke_cidrs_include_all_workload_vpcs():

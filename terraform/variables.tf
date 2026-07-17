@@ -113,3 +113,56 @@ variable "vpc_flow_log_retention_days" {
     error_message = "vpc_flow_log_retention_days must be a supported CloudWatch Logs retention value."
   }
 }
+
+# ----- Firewall policy / firewall -----
+
+variable "stateful_rule_order" {
+  description = "Stateful rule evaluation order. STRICT_ORDER evaluates rule groups by priority and stops at the first match."
+  type        = string
+  default     = "STRICT_ORDER"
+
+  validation {
+    condition     = contains(["STRICT_ORDER", "DEFAULT_ACTION_ORDER"], var.stateful_rule_order)
+    error_message = "stateful_rule_order must be STRICT_ORDER or DEFAULT_ACTION_ORDER."
+  }
+}
+
+variable "stateful_rule_group_capacity" {
+  description = "Capacity for each 5-tuple stateful rule group (allow/deny/alert/dns)."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.stateful_rule_group_capacity > 0 && var.stateful_rule_group_capacity <= 100000
+    error_message = "stateful_rule_group_capacity must be between 1 and 100000."
+  }
+}
+
+variable "domain_rule_group_capacity" {
+  description = "Capacity for the allowed/blocked domain-list rule groups."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.domain_rule_group_capacity > 0 && var.domain_rule_group_capacity <= 100000
+    error_message = "domain_rule_group_capacity must be between 1 and 100000."
+  }
+}
+
+variable "firewall_delete_protection" {
+  description = "Prevent the firewall from being deleted. Enable in production."
+  type        = bool
+  default     = false
+}
+
+variable "firewall_subnet_change_protection" {
+  description = "Prevent firewall subnet mappings from being changed. Enable in production."
+  type        = bool
+  default     = false
+}
+
+variable "firewall_policy_change_protection" {
+  description = "Prevent the attached firewall policy from being changed. Enable in production."
+  type        = bool
+  default     = false
+}

@@ -1,0 +1,20 @@
+# DNS allow rules. Workloads must use the approved resolver in shared services.
+#
+# Variables:
+#   $LAB_HOME_NET    - workload VPCs
+#   $LAB_SHARED_NET - shared services VPC CIDR (approved resolver)
+
+# DNS over UDP to the approved resolver
+pass udp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (
+    msg: "LAB allow workload DNS to approved resolver (UDP)";
+    sid: 10000040;
+    rev: 1;
+)
+
+# DNS over TCP to the approved resolver
+pass tcp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (
+    msg: "LAB allow workload DNS to approved resolver (TCP)";
+    flow: to_server;
+    sid: 10000041;
+    rev: 1;
+)

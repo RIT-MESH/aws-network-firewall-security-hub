@@ -1,0 +1,7 @@
+# Domains allowed for HTTP/HTTPS egress (ALLOWLIST). All other HTTP/HTTPS egress
+# is dropped. Use documentation/example domains only; do not include real
+# private/malicious infrastructure.
+example.com
+cdn.example.org
+updates.example.com
+api.example.org

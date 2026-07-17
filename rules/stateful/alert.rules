@@ -1,0 +1,20 @@
+# Alert-only stateful rules for suspicious but not explicitly blocked traffic.
+# These flows are allowed but logged for monitoring. Flows that are dropped by
+# deny.rules are already logged by the drop action; do not duplicate them here
+# because STRICT_ORDER stops at the first matching rule group.
+
+# Suspicious outbound destination ports
+alert tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET [4444,5555,6667] (
+    msg: "LAB suspicious outbound destination port";
+    flow: to_server;
+    sid: 10000030;
+    rev: 1;
+)
+
+# Outbound RDP attempt (no business need; alert and investigate)
+alert tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 3389 (
+    msg: "LAB outbound RDP attempt detected";
+    flow: to_server;
+    sid: 10000031;
+    rev: 1;
+)

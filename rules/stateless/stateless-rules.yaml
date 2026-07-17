@@ -1,0 +1,14 @@
+# Stateless rule specification (documentation).
+#
+# The actual stateless rule group is implemented in Terraform
+# (terraform/modules/firewall-policy/main.tf) using the blocked-destinations IP
+# set. This file documents the intent for reviewers and tooling.
+#
+# stateless_rule_group: drop-blocked-destinations
+#   - priority: 1
+#   - action: aws:drop
+#   - matches: destination CIDR in blocked-destinations.txt
+#
+# stateless defaults:
+#   - stateless_default_actions: [aws:drop]
+#   - stateless_fragment_default_actions: [aws:drop]

@@ -1,0 +1,47 @@
+# Denied stateful traffic (drop rules). Drop actions also generate alert/flow
+# logs, satisfying "block and alert" for these flows.
+#
+# Variables:
+#   $LAB_DEV_NET          - development VPC CIDR
+#   $LAB_PROD_NET         - production VPC CIDR
+#   $LAB_HOME_NET         - workload VPCs
+#   $LAB_EXTERNAL_NET     - 0.0.0.0/0
+#   $LAB_BLOCKED_DESTS    - known prohibited IP set (documentation-only TEST-NET ranges)
+
+# Development -> production SSH (unauthorized)
+drop tcp $LAB_DEV_NET any -> $LAB_PROD_NET 22 (
+    msg: "LAB unauthorized Development to Production SSH blocked";
+    flow: to_server;
+    sid: 10000020;
+    rev: 1;
+)
+
+# Development -> production any port (block by default)
+drop tcp $LAB_DEV_NET any -> $LAB_PROD_NET any (
+    msg: "LAB block Development to Production application ports by default";
+    flow: to_server;
+    sid: 10000021;
+    rev: 1;
+)
+
+# Outbound Telnet from any workload (block and alert via drop log)
+drop tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 23 (
+    msg: "LAB outbound Telnet blocked";
+    flow: to_server;
+    sid: 10000022;
+    rev: 1;
+)
+
+# Unauthorized external DNS resolver (workloads must use the approved resolver)
+drop udp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 53 (
+    msg: "LAB unauthorized external DNS resolver blocked";
+    sid: 10000023;
+    rev: 1;
+)
+
+# Known prohibited destination IP set (documentation-only TEST-NET ranges)
+drop ip $LAB_HOME_NET any -> $LAB_BLOCKED_DESTS any (
+    msg: "LAB known prohibited destination IP set blocked";
+    sid: 10000024;
+    rev: 1;
+)

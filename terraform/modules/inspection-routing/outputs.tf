@@ -14,6 +14,6 @@ output "workload_default_route_count" {
 }
 
 output "firewall_endpoint_route_count" {
-  description = "Number of TGW-attachment-to-firewall routes created. 0 until firewall_endpoints is wired (Phase 4)."
-  value       = length(var.firewall_endpoints)
+  description = "Number of TGW-attachment-to-firewall routes created."
+  value       = var.firewall_routes_enabled ? length(local.tgw_rt_order) : 0
 }

@@ -9,9 +9,6 @@
 #   - TGW inspection attachment subnet default route -> per-AZ firewall endpoint
 #   - Firewall subnet default route -> per-AZ NAT Gateway (internet egress)
 #   - Firewall subnet spoke CIDR routes -> Transit Gateway (cross-VPC return)
-#
-# The firewall-endpoint route is only created when firewall_endpoints is
-# provided (wired up in Phase 4 once the firewall exists).
 
 variable "name_prefix" {
   description = "Common resource name prefix."
@@ -62,8 +59,14 @@ variable "workload_default_route_table_ids" {
   default     = []
 }
 
-variable "firewall_endpoints" {
-  description = "Map of AZ index (string) -> AWS Network Firewall endpoint ID. When empty, the TGW-attachment-to-firewall route is not created (added in Phase 4)."
-  type        = map(string)
-  default     = {}
+variable "firewall_routes_enabled" {
+  description = "When true, create the per-AZ TGW-attachment-to-firewall default routes. Requires firewall_endpoint_ids to be supplied (Phase 4)."
+  type        = bool
+  default     = false
+}
+
+variable "firewall_endpoint_ids" {
+  description = "Network Firewall endpoint IDs ordered by AZ index. Used only when firewall_routes_enabled is true."
+  type        = list(string)
+  default     = []
 }
