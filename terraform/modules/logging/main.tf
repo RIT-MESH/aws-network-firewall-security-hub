@@ -41,9 +41,10 @@ resource "aws_cloudwatch_log_group" "flow" {
   tags              = merge(local.module_tags, { Name = "${var.name_prefix}-firewall-flow-logs" })
 }
 
-# CloudWatch Logs resource policy allowing AWS Network Firewall to write logs.
-# CloudWatch Logs PutResourcePolicy requires Resource = "*" for service delivery
-# (resource-scoped ARNs are rejected with "Could not convert to persistable policy").
+# CloudWatch Logs resource policy allowing the AWS log-delivery service principal
+# to write Network Firewall logs. Verified via the CloudWatch Logs API: the
+# principal must be delivery.logs.amazonaws.com (not networkfirewall.amazonaws.com)
+# and Resource must be "*" (resource-scoped ARNs are rejected).
 resource "aws_cloudwatch_log_resource_policy" "firewall" {
   count = (local.alert_to_cw || local.flow_to_cw) ? 1 : 0
 
@@ -54,7 +55,7 @@ resource "aws_cloudwatch_log_resource_policy" "firewall" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Service = "networkfirewall.amazonaws.com"
+        Service = "delivery.logs.amazonaws.com"
       }
       Action = [
         "logs:CreateLogStream",
@@ -152,24 +153,31 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   }
 }
 
-# Bucket policy allowing AWS log delivery to write Network Firewall logs.
+# Bucket policy allowing the AWS log-delivery service to write Network Firewall
+# logs. Requires s3:GetBucketAcl on the bucket and s3:PutObject on the log
+# prefix. BucketOwnerEnforced is set, so no x-amz-acl condition is used.
 resource "aws_s3_bucket_policy" "logs" {
   bucket = aws_s3_bucket.logs.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "delivery.logs.amazonaws.com"
-      }
-      Action   = "s3:PutObject"
-      Resource = "${aws_s3_bucket.logs.arn}/AWSLogs/*"
-      Condition = {
-        StringEquals = {
-          "s3:x-amz-acl" = "bucket-owner-full-control"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
         }
-      }
-    }]
+        Action   = "s3:GetBucketAcl"
+        Resource = aws_s3_bucket.logs.arn
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.logs.arn}/AWSLogs/*"
+      },
+    ]
   })
 }
