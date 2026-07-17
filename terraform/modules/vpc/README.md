@@ -1,5 +1,5 @@
 # Module: vpc
 
-A reusable VPC module supporting VPC CIDR, name, environment, Availability Zones, and map-based definitions for private, firewall, Transit Gateway, and (when required) public subnets. Does not assume every VPC needs every subnet type. Optional VPC flow logs. Consistent tagging.
+Reusable VPC module. Map-driven subnet definitions (private, firewall, tgw, public), per-subnet route tables, optional Internet Gateway (inspection only), optional VPC flow logs, DNS support/hostnames, consistent tagging. Does not assume every VPC needs every subnet type.
 
-TODO (Phase 2+): implement main.tf, ariables.tf, outputs.tf, and ersions.tf (if module-local constraints are needed). No resources are declared in this Phase 1 foundation.
+See variables.tf, main.tf, and outputs.tf for the implementation.

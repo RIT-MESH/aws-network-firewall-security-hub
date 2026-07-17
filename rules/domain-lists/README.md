@@ -1,3 +1,6 @@
 # Domain lists
 
-TODO (Phase 4): add llowed-domains.txt and locked-domains.txt. Allow and block lists must not overlap.
+- `allowed-domains.txt` - egress ALLOWLIST (all other HTTP/HTTPS dropped)
+- `blocked-domains.txt` - explicit DENYLIST
+
+The two lists must not overlap (enforced by tests/rules/test_domain_lists.py).

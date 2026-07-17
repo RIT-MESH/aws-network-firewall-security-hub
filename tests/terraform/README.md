@@ -1,3 +1,6 @@
 # Terraform tests
 
-TODO (Phase 2+): add 	est_structure.py, 	est_security.py, 	est_routing.py, and 	est_naming.py.
+- `test_structure.py`
+- `test_security.py`
+- `test_routing.py`
+- `test_naming.py`

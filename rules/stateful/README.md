@@ -1,3 +1,8 @@
 # Stateful (Suricata-compatible) rules
 
-TODO (Phase 4): add llow.rules, deny.rules, lert.rules, and dns.rules.
+- `allow.rules` - pass rules (non-HTTP allow)
+- `deny.rules` - drop rules (block + log)
+- `alert.rules` - alert-only rules for suspicious-but-allowed traffic
+- `dns.rules` - DNS allow rules to the approved resolver
+
+Unique SIDs across all files. See `../README.md` for evaluation order.

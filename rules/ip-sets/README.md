@@ -1,3 +1,7 @@
 # IP sets
 
-TODO (Phase 4): add home-networks.txt and locked-destinations.txt.
+- `home-networks.txt` - workload CIDRs (documentation mirror of VPC CIDRs)
+- `blocked-destinations.txt` - prohibited destination CIDRs (RFC 5737 TEST-NET)
+
+Firewall policy rule variables are derived from the VPC CIDR variables for a
+single source of truth; these files document the values.

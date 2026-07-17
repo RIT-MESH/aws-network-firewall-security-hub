@@ -1,5 +1,5 @@
 # Module: test-workload
 
-Optional low-cost private test workloads. No public IPs, SSM preferred over public SSH, minimal configurable instance type, least-privilege IAM, encrypted root volume, IMDSv2 required, minimal security group, and a toggle to disable all test instances. Never stores SSH private keys.
+Optional private test instances gated by an enable toggle. No public IPs, SSM (no SSH), IMDSv2 required, EBS encrypted, least-privilege IAM, minimal security group, test-only user_data. Never stores SSH keys.
 
-TODO (Phase 2+): implement main.tf, ariables.tf, outputs.tf, and ersions.tf (if module-local constraints are needed). No resources are declared in this Phase 1 foundation.
+See variables.tf, main.tf, and outputs.tf for the implementation.

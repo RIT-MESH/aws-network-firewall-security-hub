@@ -1,5 +1,5 @@
 # Module: transit-gateway
 
-Transit Gateway creation, VPC attachments, appliance mode where required for symmetric inspection, explicit route-table association/propagation controls, explicit route tables, and blackhole routes where justified. Creates separate workload, inspection, and shared-services routing domains.
+Transit Gateway and VPC attachments with explicit route tables, associations, propagations, routes, and blackholes. Default route-table association/propagation disabled. Appliance mode on the inspection attachment for symmetric routing. Creates workload, shared-services, and inspection routing domains.
 
-TODO (Phase 2+): implement main.tf, ariables.tf, outputs.tf, and ersions.tf (if module-local constraints are needed). No resources are declared in this Phase 1 foundation.
+See variables.tf, main.tf, and outputs.tf for the implementation.

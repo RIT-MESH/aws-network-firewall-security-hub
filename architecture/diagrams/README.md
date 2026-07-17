@@ -1,6 +1,6 @@
 # Diagrams
 
-Mermaid and any exported diagram sources live here.
+Mermaid diagram source for the centralized inspection architecture:
 
-TODO (Phase 7): add `architecture.mmd` with Availability Zones, route tables,
-forward paths, and return paths.
+- `architecture.mmd` - topology with Availability Zones, route tables, forward
+  and return paths.

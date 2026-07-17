@@ -1,3 +1,5 @@
 # Stateless rules
 
-TODO (Phase 4): add stateless-rules.yaml.
+- `stateless-rules.yaml` - documentation specification for the stateless drop
+  rule group, which is implemented in
+  `terraform/modules/firewall-policy/main.tf`.

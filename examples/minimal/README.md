@@ -1,3 +1,4 @@
 # Minimal example
 
-TODO (Phase 7): add a minimal validated composition.
+A small HA configuration: 2 AZs, test workloads disabled. See
+`terraform.tfvars.example`. Deploy from the `terraform/` root module.
