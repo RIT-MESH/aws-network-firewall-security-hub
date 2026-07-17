@@ -22,8 +22,8 @@ review current AWS pricing before deploying.
 
 ## References
 
-- https://aws.amazon.com/network-firewall/pricing/
-- https://aws.amazon.com/vpc/pricing/
-- https://aws.amazon.com/cloudwatch/pricing/
-- https://aws.amazon.com/s3/pricing/
-- https://aws.amazon.com/ec2/pricing/
+- <https://aws.amazon.com/network-firewall/pricing/>
+- <https://aws.amazon.com/vpc/pricing/>
+- <https://aws.amazon.com/cloudwatch/pricing/>
+- <https://aws.amazon.com/s3/pricing/>
+- <https://aws.amazon.com/ec2/pricing/>
