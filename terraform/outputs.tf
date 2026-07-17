@@ -80,3 +80,38 @@ output "vpc_flow_log_group_names" {
     shared_services = module.shared_services_vpc.flow_log_group_name
   }
 }
+
+# ----- Transit Gateway outputs -----
+
+output "transit_gateway_id" {
+  description = "ID of the centralized Transit Gateway."
+  value       = module.transit_gateway.transit_gateway_id
+}
+
+output "transit_gateway_arn" {
+  description = "ARN of the centralized Transit Gateway."
+  value       = module.transit_gateway.transit_gateway_arn
+}
+
+output "transit_gateway_attachment_ids" {
+  description = "Map of attachment key -> VPC attachment ID."
+  value       = module.transit_gateway.attachment_ids
+}
+
+output "transit_gateway_route_table_ids" {
+  description = "Map of route table key -> Transit Gateway route table ID."
+  value       = module.transit_gateway.route_table_ids
+}
+
+# ----- Inspection routing outputs -----
+
+output "inspection_nat_gateway_ids" {
+  description = "Map of AZ index -> NAT Gateway ID in the inspection VPC."
+  value       = module.inspection_routing.nat_gateway_ids
+}
+
+output "inspection_nat_gateway_public_ips" {
+  description = "Map of AZ index -> NAT Gateway public IP in the inspection VPC."
+  value       = module.inspection_routing.nat_gateway_public_ips
+  sensitive   = false
+}

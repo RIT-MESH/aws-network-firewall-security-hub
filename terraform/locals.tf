@@ -56,4 +56,21 @@ locals {
     tgw-a    = { cidr = cidrsubnet(var.shared_services_vpc_cidr, 8, 3), az_index = 0, purpose = "tgw", map_public_ip = false }
     tgw-b    = { cidr = cidrsubnet(var.shared_services_vpc_cidr, 8, 4), az_index = 1, purpose = "tgw", map_public_ip = false }
   }
+
+  # ----- Phase 3 routing helpers -----
+
+  # Spoke VPC CIDRs that the firewall must route back to the Transit Gateway for
+  # cross-VPC traffic after inspection.
+  spoke_cidrs = [
+    var.production_vpc_cidr,
+    var.development_vpc_cidr,
+    var.shared_services_vpc_cidr,
+  ]
+
+  # App/private subnet route tables in workload VPCs that default to the TGW.
+  workload_default_route_table_ids = concat(
+    module.production_vpc.route_table_ids_by_purpose["app"],
+    module.development_vpc.route_table_ids_by_purpose["app"],
+    module.shared_services_vpc.route_table_ids_by_purpose["app"],
+  )
 }
