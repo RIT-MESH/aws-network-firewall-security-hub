@@ -60,6 +60,13 @@ def test_workload_subnet_maps_have_no_public_subnets():
         )
 
 
+def test_no_subnet_maps_public_ip_anywhere():
+    locals_text = _read(LOCALS_TF)
+    assert "map_public_ip = true" not in locals_text, (
+        "no subnet should map public IPs; NAT uses its own EIP"
+    )
+
+
 # ----- centralized inspection routing entries -----
 
 def test_workload_app_subnets_default_to_tgw():
@@ -135,5 +142,6 @@ def test_inspection_route_table_propagates_spokes():
 def test_vpc_module_only_adds_igw_default_route_for_public_subnets():
     text = _read(VPC_MAIN)
     assert re.search(r'"aws_route"\s+"public_internet"', text)
-    # The public_internet route must be gated by map_public_ip = true.
-    assert re.search(r'for_each\s*=\s*\{[^}]*map_public_ip[^}]*\}', text, re.DOTALL)
+    # The public_internet route must be gated by purpose == "public", not by
+    # map_public_ip, so subnets never map public IPs.
+    assert re.search(r'for_each\s*=\s*\{[^}]*purpose\s*==\s*"public"[^}]*\}', text, re.DOTALL)

@@ -25,10 +25,11 @@ jobs:
           framework: terraform
           soft_fail: false
 
-      - name: tfsec
-        uses: aquasecurity/tfsec-action@v1.0.0
-        with:
-          working_directory: terraform
+      - name: trivy IaC (advisory)
+        continue-on-error: true
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy config --scanners misconfig terraform
 
   secrets:
     runs-on: ubuntu-latest

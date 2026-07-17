@@ -1,7 +1,9 @@
 # Logging module variables.
 #
 # Configures AWS Network Firewall operational logs (CloudWatch Logs) and
-# encrypted S3 archival. Public access to the log bucket is fully blocked.
+# encrypted S3 archival. The S3 log bucket is always created for archival
+# readiness; enable_s3_archival controls whether the firewall actually sends
+# logs to it. Public access to the log bucket is fully blocked.
 
 variable "name_prefix" {
   description = "Common resource name prefix."
@@ -21,7 +23,7 @@ variable "enable_cloudwatch" {
 }
 
 variable "enable_s3_archival" {
-  description = "Send firewall ALERT and FLOW logs to an encrypted S3 bucket for archival."
+  description = "Send firewall ALERT and FLOW logs to the encrypted S3 archival bucket. The bucket is always created."
   type        = bool
   default     = true
 }

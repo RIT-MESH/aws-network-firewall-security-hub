@@ -5,6 +5,8 @@ locals {
 }
 
 resource "aws_networkfirewall_firewall" "this" {
+  # checkov:skip=CKV_AWS_344:Deletion protection is environment-controlled (firewall_delete_protection) and enabled in production tfvars; disabled in lab to allow teardown. Risk: accidental lab deletion. Compensating control: production tfvars enables protection. Reviewer: keep enabled in production.
+  # checkov:skip=CKV_AWS_345:Firewall encryption uses AWS-managed encryption by default; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption at rest. Reviewer: configure CMK for production.
   name                              = var.name
   description                       = var.description
   vpc_id                            = var.vpc_id

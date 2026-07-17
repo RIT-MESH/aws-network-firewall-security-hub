@@ -29,8 +29,8 @@ locals {
     fw-b     = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 2), az_index = 1, purpose = "firewall", map_public_ip = false }
     tgw-a    = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 3), az_index = 0, purpose = "tgw", map_public_ip = false }
     tgw-b    = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 4), az_index = 1, purpose = "tgw", map_public_ip = false }
-    public-a = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 5), az_index = 0, purpose = "public", map_public_ip = true }
-    public-b = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 6), az_index = 1, purpose = "public", map_public_ip = true }
+    public-a = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 5), az_index = 0, purpose = "public", map_public_ip = false }
+    public-b = { cidr = cidrsubnet(var.inspection_vpc_cidr, 8, 6), az_index = 1, purpose = "public", map_public_ip = false }
   }
 
   # Production VPC: private application subnets and TGW attachment subnets.

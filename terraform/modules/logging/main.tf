@@ -11,6 +11,8 @@ locals {
 resource "aws_cloudwatch_log_group" "alert" {
   count = var.enable_cloudwatch ? 1 : 0
 
+  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
+  # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
   name              = "/aws/network-firewall/${var.name_prefix}/alert"
   retention_in_days = var.log_retention_days
   tags              = merge(local.module_tags, { Name = "${var.name_prefix}-firewall-alert-logs" })
@@ -19,6 +21,8 @@ resource "aws_cloudwatch_log_group" "alert" {
 resource "aws_cloudwatch_log_group" "flow" {
   count = var.enable_cloudwatch ? 1 : 0
 
+  # checkov:skip=CKV_AWS_158:CloudWatch log group KMS encryption not configured; SSE via CloudWatch default is acceptable for this lab. Compensating control: S3 archival uses KMS. Reviewer: enable CMK encryption for production.
+  # checkov:skip=CKV_AWS_338:Retention is configurable (log_retention_days, default 30) and intentionally short for lab cost. Reviewer: set >=365 for production.
   name              = "/aws/network-firewall/${var.name_prefix}/flow"
   retention_in_days = var.log_retention_days
   tags              = merge(local.module_tags, { Name = "${var.name_prefix}-firewall-flow-logs" })
@@ -50,19 +54,19 @@ resource "aws_cloudwatch_log_resource_policy" "firewall" {
   })
 }
 
-# ----- S3 archival bucket -----
+# ----- S3 archival bucket (always created for archival readiness) -----
 
 resource "aws_s3_bucket" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
+  # checkov:skip=CKV_AWS_18:S3 server access logging is not enabled on this log-archive target bucket; enabling access logging on a log bucket is redundant and noisy. Risk: no audit of bucket object access. Compensating control: CloudTrail/CloudWatch monitor bucket changes. Reviewer: enable access logging to a separate bucket for production.
+  # checkov:skip=CKV_AWS_144:Cross-region replication is not required for a single-region lab log archive. Risk: regional data loss. Compensating control: versioning enabled; replicate manually for production. Reviewer: enable CRR for production durability.
+  # checkov:skip=CKV2_AWS_62:S3 event notifications are not required; logs are analyzed offline by scripts/analyze-firewall-logs.py. Risk: no real-time notification. Compensating control: CloudWatch metric filters. Reviewer: enable event notifications if downstream automation is needed.
 
   bucket = local.bucket_name
   tags   = merge(local.module_tags, { Name = local.bucket_name })
 }
 
 resource "aws_s3_bucket_versioning" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   versioning_configuration {
     status = "Enabled"
@@ -70,21 +74,18 @@ resource "aws_s3_bucket_versioning" "logs" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = "aws/s3"
     }
   }
 }
 
 resource "aws_s3_bucket_public_access_block" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -93,9 +94,7 @@ resource "aws_s3_bucket_public_access_block" "logs" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   rule {
     object_ownership = "BucketOwnerEnforced"
@@ -103,9 +102,7 @@ resource "aws_s3_bucket_ownership_controls" "logs" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   rule {
     id     = "firewall-logs-lifecycle"
@@ -113,6 +110,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 
     filter {
       prefix = ""
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
 
     transition {
@@ -141,9 +142,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 
 # Bucket policy allowing AWS log delivery to write Network Firewall logs.
 resource "aws_s3_bucket_policy" "logs" {
-  count = var.enable_s3_archival ? 1 : 0
-
-  bucket = aws_s3_bucket.logs[0].id
+  bucket = aws_s3_bucket.logs.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -153,7 +152,7 @@ resource "aws_s3_bucket_policy" "logs" {
         Service = "delivery.logs.amazonaws.com"
       }
       Action   = "s3:PutObject"
-      Resource = "${aws_s3_bucket.logs[0].arn}/AWSLogs/*"
+      Resource = "${aws_s3_bucket.logs.arn}/AWSLogs/*"
       Condition = {
         StringEquals = {
           "s3:x-amz-acl" = "bucket-owner-full-control"

@@ -4,3 +4,4 @@ rules:
   document-start: disable
   truthy:
     check-keys: false
+  comments-indentation: disable

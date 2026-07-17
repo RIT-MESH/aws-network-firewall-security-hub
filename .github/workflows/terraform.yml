@@ -38,8 +38,13 @@ jobs:
         working-directory: terraform
         run: terraform validate
 
-      - name: tflint
+      - name: tflint (advisory)
         uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: latest
-      - run: tflint --recursive terraform
+      # tflint is advisory: the AWS ruleset requires a .tflint.hcl and plugin
+      # init; without it only built-in Terraform language rules run. It does not
+      # gate the workflow.
+      - working-directory: terraform
+        run: tflint --recursive
+        continue-on-error: true

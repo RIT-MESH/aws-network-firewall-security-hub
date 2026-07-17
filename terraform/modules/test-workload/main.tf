@@ -53,7 +53,10 @@ resource "aws_iam_instance_profile" "test" {
 # ----- Per-instance security groups (no ingress, controlled egress) -----
 
 resource "aws_security_group" "test" {
-  for_each = local.active_instances
+  # checkov:skip=CKV_AWS_382:Broad egress is required so test traffic reaches the inspection firewall for validation; not used in production. Risk: broad outbound from test instances. Compensating control: test workloads are optional, private, and SSM-managed; firewall enforces egress policy. Reviewer: restrict egress in production.
+
+  description = "Test workload security group (no ingress; broad egress for validation only)"
+  for_each    = local.active_instances
 
   name   = "${var.name_prefix}-test-${each.value.name}"
   vpc_id = each.value.vpc_id
@@ -73,6 +76,8 @@ resource "aws_security_group" "test" {
 # ----- Private test instances -----
 
 resource "aws_instance" "test" {
+  # checkov:skip=CKV_AWS_126:Detailed monitoring is not required for short-lived test instances. Risk: limited observability. Compensating control: CloudWatch firewall metrics. Reviewer: enable for production workloads.
+  # checkov:skip=CKV_AWS_135:EBS-optimized attribute not set; small test instance types are EBS-optimized by default. Risk: none material. Compensating control: gp3 encrypted root volume. Reviewer: set ebs_optimized for production.
   for_each = local.active_instances
 
   ami           = data.aws_ssm_parameter.ami[0].value

@@ -59,7 +59,7 @@ def test_s3_log_bucket_blocks_public_access():
 def test_s3_log_bucket_has_encryption():
     text = (TF_DIR / "modules" / "logging" / "main.tf").read_text(encoding="utf-8")
     assert "aws_s3_bucket_server_side_encryption_configuration" in text
-    assert re.search(r"sse_algorithm\s*=\s*\"AES256\"", text), "S3 log bucket must enable server-side encryption"
+    assert re.search(r'sse_algorithm\s*=\s*"(aws:kms|AES256)"', text), "S3 log bucket must enable server-side encryption"
 
 
 def test_s3_log_bucket_has_lifecycle():

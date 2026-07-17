@@ -47,8 +47,15 @@ resource "aws_route_table_association" "this" {
   route_table_id = aws_route_table.this[each.key].id
 }
 
-# Internet Gateway is optional and intended only for the inspection VPC. Workload
-# VPCs must NOT have a direct internet path.
+# Restrict the VPC default security group to all traffic. Workload security
+# groups are created explicitly where needed (test-workload module).
+resource "aws_default_security_group" "this" {
+  # checkov:skip=CKV_AWS_23:aws_default_security_group description is provider-managed and cannot be configured; the group is restricted to no rules.
+  # Restrict the VPC default security group to no ingress/egress rules. Workload
+  # security groups are created explicitly where needed (test-workload module).
+  vpc_id = aws_vpc.this.id
+  tags   = merge(local.module_tags, { Name = "${var.vpc_name}-default-sg" })
+}
 resource "aws_internet_gateway" "this" {
   count = var.create_internet_gateway ? 1 : 0
 
@@ -56,9 +63,11 @@ resource "aws_internet_gateway" "this" {
   tags   = merge(local.module_tags, { Name = "${var.vpc_name}-igw" })
 }
 
-# Default route to the IGW for public subnets (map_public_ip = true).
+# Default route to the IGW for public subnets (purpose == "public"). Subnets do
+# not map public IPs; NAT Gateways (created by the inspection-routing module) get
+# their EIPs directly.
 resource "aws_route" "public_internet" {
-  for_each = { for k, s in var.subnets : k => s if s.map_public_ip }
+  for_each = { for k, s in var.subnets : k => s if s.purpose == "public" }
 
   route_table_id         = aws_route_table.this[each.key].id
   destination_cidr_block = "0.0.0.0/0"

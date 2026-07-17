@@ -29,10 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ludeeus/action-shellcheck@2.0.0
-        with:
-          severity: warning
-          additional_paths: scripts
+      - name: install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck -S warning scripts/*.sh
 
   yamllint:
     runs-on: ubuntu-latest
@@ -42,4 +41,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -U yamllint
-      - run: yamllint -d "rules:line-length: disable" .
+      - run: yamllint -c .yamllint.yaml .
