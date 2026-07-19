@@ -84,6 +84,7 @@ These are stateful-rule/design defects, not routing defects, and are outside the
 stateless-default fix scope. Until they are corrected, allowed HTTPS egress and
 approved DNS cannot be validated as PASS, so the project remains "Deployed,
 runtime validation incomplete."
+
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).
