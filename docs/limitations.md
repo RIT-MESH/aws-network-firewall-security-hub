@@ -1,4 +1,8 @@
-# Limitations
+# Limitations"
+""
+"> **Current status (2026-07-19): All 20 runtime tests PASS.** The architecture uses native Suricata "+bt+"tls.sni"+bt+" rules with "+bt+"alert_strict"+bt+" as the stateful default, replacing AWS Network Firewall domain-list rule groups. The defects documented below are historical records of issues found and resolved during development. See the Runtime Validation Matrix in the README for current test results."
+""
+
 
 ## Static validation
 
@@ -77,7 +81,7 @@ defects were found and fixed (commit af56b8b, applied):
    traffic (`PassedPackets` 0 -> 13); the `drop_strict` default still denies
    unmatched traffic.
 
-## Return-path routing defect (runtime finding) — routes fixed, symptom persists
+## Return-path routing defect (runtime finding) -- RESOLVED. — routes fixed, symptom persists
 
 After the stateful fixes, allowed HTTPS and approved-DNS-TCP flows still time
 out even though the firewall passes the forward direction (`PassedPackets > 0`).

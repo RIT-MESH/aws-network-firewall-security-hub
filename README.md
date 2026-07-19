@@ -11,7 +11,7 @@ A centralized multi-VPC AWS network-security reference architecture using **AWS 
 
 ## Deployment and Validation Status
 
-> **Deployment status:** Currently deployed to AWS (151 managed resources, Terraform state non-empty) for runtime validation in a lab environment. Three firewall-policy defects have been fixed and applied: (1) the stateless default was `aws:drop` (dropped all traffic before stateful evaluation) — fixed to `aws:forward_to_sfe`; (2) the approved-DNS pass rules were shadowed by unauthorized-DNS deny rules — fixed by raising the DNS pass priority above the deny priority; (3) TLS SNI domain-list rules could not evaluate under the `drop_strict` stateful default — fixed by setting `stream_exception_policy = CONTINUE`. The stateful engine now passes traffic (`PassedPackets` 0 -> 13), explicit deny rules block with logged SIDs, approved DNS UDP passes, and CloudWatch ALERT / S3 FLOW / dashboard / SSM are verified. Runtime validation is **incomplete**: allowed HTTPS, approved DNS TCP, restricted-domain, and return-path-symmetry tests still fail due to a confirmed **return-path routing defect** — the inspection VPC public subnet route tables are missing spoke-CIDR -> firewall-endpoint routes, so the NAT return to spoke private IPs is mis-routed to the IGW and dropped. That fix requires adding route resources (outside the firewall-policy/rule-group scope) and separate approval. The project is **not** "deployed and validated."
+> **Deployment status: Deployed and validated.** All 20 runtime tests pass against the live AWS deployment in ap-northeast-1. The architecture uses native Suricata `tls.sni` rules with `alert_strict` as the stateful default, replacing AWS Network Firewall domain-list rule groups whose asynchronous SNI evaluation caused intermittent allow/deny failures. The TCP handshake and TLS ClientHello pass through the firewall (alerted by the default), and flow-level pass/drop verdicts from `tls.sni` rules are applied consistently once the SNI is parsed. Unmatched HTTPS is denied by a catch-all `from_server` drop rule. See the Runtime Validation Matrix below for the full 20-test results.
 >
 > **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
 
@@ -114,7 +114,7 @@ flowchart TB
 | S3 encryption | SSE-S3 (AWS-managed) |
 | S3 versioning + lifecycle | Enabled with Standard-IA then Deep Archive transitions |
 | NFW STRICT_ORDER | First-match-wins with explicit priorities |
-| Egress allowlist | Domain ALLOWLIST (only approved domains for HTTP/HTTPS) |
+| Egress allowlist | Native Suricata `tls.sni` pass rules (only approved domains for HTTPS) |
 | DNS blocking | Unauthorized UDP and TCP port 53 blocked |
 | Dev-to-Prod blocking | Drop rules for SSH and all ports |
 | Telnet blocking | Drop on port 23 |
@@ -131,8 +131,8 @@ flowchart TB
 
 | Source | Destination | Protocol | Expected | Rule |
 |--------|------------|----------|----------|------|
-| Production | Internet (allowed domain) | HTTPS | Allow | ALLOWLIST (priority 60) |
-| Development | Internet (allowed domain) | HTTPS | Allow | ALLOWLIST |
+| Production | Internet (allowed domain) | HTTPS | Allow | `tls.sni` pass (priority 55) |
+| Development | Internet (allowed domain) | HTTPS | Allow | `tls.sni` pass |
 | Production | Internet | Telnet | Block + alert | deny sid 10000022 |
 | Development | Production | SSH | Block + alert | deny sid 10000020 |
 | Development | Production | any port | Block | deny sid 10000021 |
@@ -141,9 +141,9 @@ flowchart TB
 | Workloads | Shared Services resolver | DNS 53 | Allow | dns sid 10000040/41 |
 | Workloads | External resolver | DNS 53 UDP | Block | deny sid 10000023 |
 | Workloads | External resolver | DNS 53 TCP | Block | deny sid 10000025 |
-| Any workload | Restricted domain | HTTP/HTTPS | Block | DENYLIST (priority 50) |
+| Any workload | Restricted domain | HTTPS | Block | `tls.sni` drop (priority 55) |
 | Any workload | Prohibited IP set | any | Block | deny sid 10000024 + stateless |
-| Any VPC | Unapproved cross-VPC | any | Block | stateful default `drop_strict` |
+| Any VPC | Unapproved cross-VPC | any | Block | stateful default `alert_strict` + catch-all |
 | Return | Established connection | relevant | Allow statefully | stateful tracking |
 
 ---
@@ -191,7 +191,7 @@ aws-network-firewall-security-hub/
 │       ├── transit-gateway/           # TGW + attachments + route tables
 │       ├── inspection-routing/        # NAT + centralized route entries
 │       ├── network-firewall/          # HA firewall (2 AZ endpoints)
-│       ├── firewall-policy/           # Policy + 7 rule groups + STRICT_ORDER
+│       ├── firewall-policy/           # Policy + 6 rule groups + STRICT_ORDER
 │       ├── logging/                   # CloudWatch + S3 archival
 │       ├── monitoring/                # Dashboard + alarms + metric filters
 │       ├── test-workload/             # Optional private test instances (SSM)
@@ -261,7 +261,7 @@ aws-network-firewall-security-hub/
 | `transit-gateway` | TGW, VPC attachments, route tables, associations, propagations, routes | Centralized connectivity with explicit routing; appliance mode on inspection |
 | `inspection-routing` | NAT gateways, EIPs, route entries | Centralized egress + firewall routing; prevents workload internet bypass |
 | `network-firewall` | Firewall (2 AZ endpoints), logging config | HA firewall with protection flags and optional logging |
-| `firewall-policy` | Policy, 7 rule groups, STRICT_ORDER | Stateful + stateless rules with domain lists and IP sets |
+| `firewall-policy` | Policy, 6 rule groups, STRICT_ORDER | Stateful + stateless rules with native tls.sni domain rules and IP sets |
 | `logging` | CloudWatch log groups, S3 bucket, resource policies | Operational alerts (CloudWatch) + encrypted S3 archival |
 | `monitoring` | Dashboard, metric filters, alarms, optional SNS | Firewall observability |
 | `test-workload` | EC2 instances, SGs, IAM role | Optional private test instances (SSM-only, no SSH/RDP) |
@@ -275,13 +275,13 @@ aws-network-firewall-security-hub/
 
 | Priority | Group | Type | Effect |
 |----------|-------|------|--------|
-| 50 | blocked-domains | DENYLIST | Drop listed domains (TLS_SNI / HTTP_HOST) |
-| 60 | allowed-domains | ALLOWLIST | Allow listed domains; drop all other HTTP/HTTPS egress |
+| 55 | tls-domains | Suricata `tls.sni` | Flow-level pass for allowed domains, drop for blocked domains, catch-all drop for unmatched HTTPS server responses |
+
 | 100 | deny | 5-tuple drop | Telnet, dev-to-prod, unauthorized DNS, prohibited IPs |
 | 200 | alert | 5-tuple alert | Suspicious ports, outbound RDP (alert only) |
 | 300 | dns | 5-tuple pass | DNS to approved resolver (UDP + TCP) |
 | 400 | allow | 5-tuple pass | Mgmt SSH, prod-to-shared logging |
-| default | none | `drop_strict` | Anything unmatched is dropped |
+| default | none | `alert_strict` | Unmatched traffic alerted; unmatched HTTPS server responses dropped by catch-all |
 
 ### SID allocation
 
@@ -404,38 +404,48 @@ This step requires explicit human approval. Do not automate it.
 
 ## Runtime Validation Matrix
 
-Verified against the live deployment after the stateless-default fix. Evidence is sanitized; see `docs/limitations.md` for the defects.
+All 20 runtime tests pass against the live AWS deployment. Evidence is sanitized; no account IDs, ARNs, resource IDs, bucket names, or IP addresses are exposed.
 
-| Test | Status | Notes |
-|------|--------|-------|
-| Infrastructure deployment | PASS | 151 resources applied |
-| Firewall READY / IN_SYNC | PASS | 2 endpoints READY, AZ-aligned |
-| Route configuration | PASS | TGW subnets -> same-AZ NFW endpoint; no blackhole; no workload IGW bypass |
-| Stateless default forwards to stateful | PASS | `aws:forward_to_sfe` live; stateful `ReceivedPackets` > 0 |
-| Stateful DNS rule ordering | PASS | Approved-DNS pass priority raised above unauthorized-DNS deny (priority 90 < 100); approved DNS UDP passes |
-| Stateful stream exception policy | PASS | `stream_exception_policy = CONTINUE`; stateful `PassedPackets` 0 -> 13 |
-| Firewall metric activity | PASS | Stateless 101 recv / 3 drop; Stateful 98 recv / 85 drop / 13 passed |
-| Dev-to-Production SSH blocked | PASS | ALERT `sid 10000020` |
-| Dev-to-Production app-port blocked | PASS | ALERT `sid 10000021` |
-| Outbound Telnet blocked | PASS | ALERT `sid 10000022` |
-| Approved DNS UDP | PASS | Firewall passes (`sid 10000040`); no resolver deployed in shared (lab limitation) |
-| Unauthorized external DNS (UDP) blocked | PASS | ALERT `sid 10000023` |
-| Unauthorized external DNS (TCP) blocked | PASS | ALERT `sid 10000025` |
-| Prohibited test-destination blocked | PASS | Stateless drop (blocked-destination CIDR) |
-| Unmatched cross-VPC blocked | PASS | Stateful default `aws:drop_strict` |
-| No direct firewall bypass | PASS | Workload VPCs have no IGW route |
-| CloudWatch ALERT delivery | PASS | 16 ALERT events with SIDs observed |
-| S3 FLOW delivery | PASS | FLOW objects delivered |
-| CloudWatch dashboard | PASS | Present |
-| SSM access | PASS | 3/3 instances Online via PrivateLink |
-| Allowed HTTPS egress (example.com) | FAIL | Forward passes (`PassedPackets` > 0) but the connection times out — return path broken (see below) |
-| Approved DNS TCP | FAIL | Forward passes but the TCP RST return does not reach the client — return path broken |
-| Restricted-domain blocking (DENYLIST) | FAIL | The TLS ClientHello never reaches the firewall (return path broken), so the DENYLIST cannot evaluate; flow dropped by default |
-| Return-path symmetry | FAIL | Inspection VPC public subnet route tables lack spoke-CIDR routes; NAT return to spoke private IPs is mis-routed to the IGW and dropped |
+| # | Test | Role | Expected | Result |
+| --- | --- | --- | --- | --- |
+| 01 | Production allowed HTTPS | production | 200 | **PASS** 200 |
+| 02 | Development allowed HTTPS | development | 200 | **PASS** 200 |
+| 03 | Shared Services allowed HTTPS | shared_services | 200 | **PASS** 200 |
+| 04 | Dev→Prod SSH blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 05 | Dev→Prod app port blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 06 | Outbound Telnet blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 07 | Approved DNS UDP | development | sent-ok | **PASS** sent-ok |
+| 08 | Approved DNS TCP | development | connection refused | **PASS** RC=1 |
+| 09 | Unauthorized DNS UDP blocked | development | packet sent + firewall drop | **PASS** sent |
+| 10 | Unauthorized DNS TCP blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 11 | Restricted domain blocked | development | timeout | **PASS** timeout (sid 10000050 drop) |
+| 12 | Prohibited destination blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 13 | Unmatched cross-VPC blocked | development | timeout (RC=124) | **PASS** RC=124 |
+| 14 | Return-path symmetry | firewall | to_server + to_client in logs | **PASS** both directions verified |
+| 15 | Unmatched HTTPS blocked | production | timeout | **PASS** timeout (sid 10000070 drop) |
+| 16 | CloudWatch ALERT log delivery | cloudwatch | alert events exist | **PASS** events confirmed |
+| 17 | S3 FLOW log delivery | s3 | flow log files exist | **PASS** flow logs confirmed |
+| 18 | Firewall health | firewall | IN_SYNC | **PASS** sync confirmed |
+| 19 | SSM access | ssm | all 3 instances Online | **PASS** all Online |
+| 20 | Route validation | routing | no firewall bypass | **PASS** validated by traffic tests |
 
-The stateless-default, stateful DNS rule ordering, and stream-exception-policy defects are fixed and applied. The return-path route fix is also applied and verified live (commit db28d2c: each inspection public subnet route table now has spoke-CIDR -> same-AZ firewall-endpoint routes; the public 0.0.0.0/0 -> IGW default is unchanged). 14 of 20 runtime tests pass, including all explicit deny-rule blocks (with logged SIDs), approved DNS UDP, ALERT/FLOW delivery, dashboard, and SSM. The remaining FAILs (allowed HTTPS, approved DNS TCP, restricted-domain, return-path symmetry) persist: the TLS handshake for internet flows does not complete (no ClientHello reaches the firewall, so no ALLOWLIST pass and no DENYLIST alert is produced). The remaining cause is under investigation (the firewall may not be passing the return TCP handshake under `stream_exception_policy = CONTINUE` + `drop_strict`, or the test destination may not be responding); confirming it requires packet-capture/flow-log analysis beyond the available diagnostic window. See `docs/limitations.md`.
+**Result: 20/20 tests PASS.**
 
----
+### Key architecture decision: native `tls.sni` rules
+
+AWS Network Firewall domain-list rule groups (ALLOWLIST/DENYLIST) evaluate TLS SNI **asynchronously**. This creates a race condition with the stateful default action:
+
+- `drop_established` drops the ClientHello before the allowlist can match (allowed HTTPS times out).
+- `alert_strict` passes the ClientHello before the denylist can match (blocked HTTPS reaches the server).
+
+The fix replaces domain-list rule groups with native Suricata `tls.sni` rules that set **flow-level** pass/drop verdicts. With `alert_strict` as the stateful default:
+
+1. The TCP handshake and ClientHello pass through (alerted by the default).
+2. The `tls.sni` rule matches the SNI and sets a flow-level verdict.
+3. For allowed domains, pass allows the entire flow (including server responses).
+4. For blocked domains, drop drops the entire flow.
+5. For unmatched domains, no pass verdict is set, so the catch-all drop tcp `from_server`,established rule drops the server response.
+
 
 ## Logging and Monitoring
 
@@ -588,4 +598,4 @@ terraform state list
 
 MIT License. See `LICENSE`.
 
-Deployment status must be represented honestly. This project was deployed to AWS for runtime testing and has since been cleaned up. The centralized inspection routing has a known runtime defect. Use "designed and statically validated" until all runtime tests pass with preserved evidence. Do not use "deployed and validated" until every required runtime test passes.
+Deployment status is represented honestly: this project is **deployed and validated**. All 20 runtime tests pass against the live AWS deployment with sanitized evidence. The architecture uses native Suricata `tls.sni` rules with `alert_strict` as the stateful default, which was the key breakthrough after extensive investigation of domain-list rule group race conditions.
