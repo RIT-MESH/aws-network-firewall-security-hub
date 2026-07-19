@@ -142,6 +142,11 @@ output "firewall_endpoint_ids" {
   value       = module.network_firewall.endpoint_ids
 }
 
+output "firewall_endpoint_ids_by_az" {
+  description = "Map of AZ index -> Network Firewall endpoint ID. Keys align with the inspection TGW attachment subnet route tables so per-AZ routing is deterministic and unambiguous."
+  value       = module.network_firewall.endpoint_ids_by_az
+}
+
 output "stateful_rule_group_arns" {
   description = "Map of stateful rule group name -> ARN."
   value       = module.firewall_policy.stateful_rule_group_arns

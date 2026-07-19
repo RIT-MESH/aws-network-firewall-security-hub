@@ -94,10 +94,55 @@ TGW-attachment subnet route table points `0.0.0.0/0` to the firewall endpoint in
 the same AZ, and each firewall subnet points to the NAT Gateway in the same AZ.
 This keeps forward and return paths on the same AZ, avoiding asymmetric routing.
 
+### Explicit AZ-index-keyed mapping (not positional)
+
+The per-AZ `tgw -> firewall` route is built from two AZ-index-keyed maps that
+share the same keys:
+
+- `inspection_tgw_route_table_ids`: `{ "0" = tgw-a rt, "1" = tgw-b rt }`
+- `firewall_endpoint_ids_by_az`:     `{ "0" = endpoint in AZ A, "1" = endpoint in AZ B }`
+
+The `tgw_to_firewall` route resource iterates `for_each` over
+`firewall_endpoint_ids_by_az` and looks up the route table with the identical
+key: `route_table_id = inspection_tgw_route_table_ids[each.key]`,
+`vpc_endpoint_id = each.value`. Because both structures use the same AZ-index
+key, the route table in AZ N always points to the firewall endpoint in AZ N.
+This is deterministic and cannot silently misalign the way a positional
+`firewall_endpoint_ids[count.index]` list-index coupling could. A key mismatch
+between the two maps fails loudly at plan/apply time.
+
+The `endpoint_ids_by_az` map is derived in the network-firewall module from the
+firewall `sync_states`, filtering by `availability_zone == az` for each AZ in
+`az_names`, and a `firewall_endpoint_per_az` check block asserts each AZ has
+exactly one endpoint at apply time.
+
+## Runtime verification (deployed)
+
+Before traffic tests, run read-only checks to confirm the per-AZ routes and
+endpoint state are healthy:
+
+```bash
+scripts/test-routes.sh --run
+```
+
+This now reports:
+
+- inspection TGW attachment subnet `0.0.0.0/0 -> firewall endpoint` routes
+  (including route `State` — must not be `blackhole`);
+- firewall endpoint -> Availability Zone alignment;
+- firewall `IN_SYNC` / `READY` status;
+- NAT Gateway state per AZ;
+- workload app subnet default routes (target must be a Transit Gateway).
+
+If any per-AZ `tgw -> firewall` route is absent or `blackhole`, or the firewall
+is not `IN_SYNC`, do not run traffic tests — the firewall will receive 0 packets.
+
 ## Notes and limitations
 
-- The per-AZ `tgw -> firewall` route is created only once `firewall_endpoints`
-  is wired from the Network Firewall module (Phase 4).
-- Until the firewall exists, traffic entering the inspection TGW attachment
-  subnets has no `0.0.0.0/0` route; this is intentional and completed in Phase 4.
+- The per-AZ `tgw -> firewall` route is created only once
+  `firewall_endpoint_ids_by_az` is wired from the Network Firewall module
+  (Phase 4). Until the firewall exists, traffic entering the inspection TGW
+  attachment subnets has no `0.0.0.0/0` route; this is intentional and completed
+  in Phase 4.
 - Runtime tests (test-routes.sh) are required to confirm actual forwarding.
+  Static tests prove configuration intent, not packet-level behavior.

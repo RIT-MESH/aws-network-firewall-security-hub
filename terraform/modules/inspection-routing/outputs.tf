@@ -14,6 +14,11 @@ output "workload_default_route_count" {
 }
 
 output "firewall_endpoint_route_count" {
-  description = "Number of TGW-attachment-to-firewall routes created."
-  value       = var.firewall_routes_enabled ? length(local.tgw_rt_order) : 0
+  description = "Number of TGW-attachment-to-firewall routes created (one per AZ key present in firewall_endpoint_ids_by_az when enabled)."
+  value       = var.firewall_routes_enabled ? length(var.firewall_endpoint_ids_by_az) : 0
+}
+
+output "firewall_endpoint_route_az_keys" {
+  description = "Sorted AZ-index keys for which a TGW->firewall route was created. Must equal the keys of inspection_tgw_route_table_ids."
+  value       = var.firewall_routes_enabled ? sort(keys(var.firewall_endpoint_ids_by_az)) : []
 }

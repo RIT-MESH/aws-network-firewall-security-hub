@@ -60,13 +60,13 @@ variable "workload_default_route_table_ids" {
 }
 
 variable "firewall_routes_enabled" {
-  description = "When true, create the per-AZ TGW-attachment-to-firewall default routes. Requires firewall_endpoint_ids to be supplied (Phase 4)."
+  description = "When true, create the per-AZ TGW-attachment-to-firewall default routes. Requires firewall_endpoint_ids_by_az to be supplied (Phase 4)."
   type        = bool
   default     = false
 }
 
-variable "firewall_endpoint_ids" {
-  description = "Network Firewall endpoint IDs ordered by AZ index. Used only when firewall_routes_enabled is true."
-  type        = list(string)
-  default     = []
+variable "firewall_endpoint_ids_by_az" {
+  description = "Map of AZ index (string, e.g. \"0\",\"1\") -> Network Firewall endpoint ID. Keys MUST match the keys of inspection_tgw_route_table_ids so each TGW attachment subnet route table points to the same-AZ firewall endpoint deterministically (never a positional/list-index coupling)."
+  type        = map(string)
+  default     = {}
 }

@@ -14,9 +14,6 @@ locals {
       }
     ]
   ])
-
-  # Ordered list of inspection TGW route table IDs by AZ index (keys "0","1",...).
-  tgw_rt_order = [for k in sort(keys(var.inspection_tgw_route_table_ids)) : var.inspection_tgw_route_table_ids[k]]
 }
 
 # ----- NAT Gateways (centralized egress) -----
@@ -72,11 +69,24 @@ resource "aws_route" "firewall_to_tgw_spokes" {
 }
 
 # ----- Inspection TGW attachment subnet default route -> per-AZ firewall endpoint -----
-
+#
+# SECURITY-CRITICAL: the route table and the firewall endpoint are aligned by the
+# SAME AZ-index key (e.g. "0" = AZ A, "1" = AZ B), NOT by a positional list index.
+# Each.key comes from var.firewall_endpoint_ids_by_az and is looked up in
+# var.inspection_tgw_route_table_ids with the identical key, so the TGW
+# attachment subnet route table in AZ N always points to the firewall endpoint in
+# AZ N. This eliminates the class of defects where unordered endpoint status
+# lists or positional list-index coupling route traffic to the wrong-AZ firewall
+# endpoint, which presents at runtime as "firewall received 0 packets" despite
+# apparently correct route tables.
+#
+# A key mismatch between firewall_endpoint_ids_by_az and
+# inspection_tgw_route_table_ids fails loudly at plan/apply time (lookup error)
+# rather than silently producing a misaligned route.
 resource "aws_route" "tgw_to_firewall" {
-  count = var.firewall_routes_enabled ? length(local.tgw_rt_order) : 0
+  for_each = var.firewall_routes_enabled ? var.firewall_endpoint_ids_by_az : {}
 
-  route_table_id         = local.tgw_rt_order[count.index]
+  route_table_id         = var.inspection_tgw_route_table_ids[each.key]
   destination_cidr_block = "0.0.0.0/0"
-  vpc_endpoint_id        = var.firewall_endpoint_ids[count.index]
+  vpc_endpoint_id        = each.value
 }

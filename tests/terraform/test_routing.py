@@ -15,6 +15,9 @@ MAIN_TF = TF_DIR / "main.tf"
 ROUTING_TF = TF_DIR / "modules" / "inspection-routing" / "main.tf"
 TGW_VARS = TF_DIR / "modules" / "transit-gateway" / "variables.tf"
 VPC_MAIN = TF_DIR / "modules" / "vpc" / "main.tf"
+NFW_MAIN = TF_DIR / "modules" / "network-firewall" / "main.tf"
+NFW_OUT = TF_DIR / "modules" / "network-firewall" / "outputs.tf"
+IR_VARS = TF_DIR / "modules" / "inspection-routing" / "variables.tf"
 LOCALS_TF = TF_DIR / "locals.tf"
 
 
@@ -92,7 +95,77 @@ def test_firewall_subnets_route_spokes_to_tgw():
 def test_tgw_attachment_subnet_routes_to_firewall_endpoint():
     text = _read(ROUTING_TF)
     assert _resource(text, "tgw_to_firewall")
-    assert re.search(r"vpc_endpoint_id\s*=\s*var\.firewall_endpoint_ids\[count\.index\]", text)
+    # Route table and endpoint are aligned by the SAME AZ-index key (each.key),
+    # not a positional list index. This prevents silent AZ misalignment that
+    # would route traffic to the wrong-AZ firewall endpoint.
+    assert re.search(r"for_each\s*=\s*var\.firewall_routes_enabled\s*\?\s*var\.firewall_endpoint_ids_by_az", text), (
+        "tgw_to_firewall must iterate over the AZ-index-keyed endpoint map"
+    )
+    assert re.search(r"route_table_id\s*=\s*var\.inspection_tgw_route_table_ids\[each\.key\]", text), (
+        "route_table_id must be looked up by each.key (same AZ key as the endpoint)"
+    )
+    assert re.search(r"vpc_endpoint_id\s*=\s*each\.value", text), (
+        "vpc_endpoint_id must be each.value from the AZ-keyed map"
+    )
+
+
+def test_no_positional_endpoint_indexing_remains():
+    """Regression guard: the old positional list-index coupling must not return.
+    Positional coupling (var.firewall_endpoint_ids[count.index]) was fragile
+    because it relied on two independent orderings coincidentally matching; a
+    mismatch silently routed traffic to the wrong-AZ firewall endpoint, which
+    presents at runtime as 'firewall received 0 packets' despite correct routes.
+    """
+    text = _read(ROUTING_TF)
+    assert not re.search(r"var\.firewall_endpoint_ids\b", text), (
+        "positional var.firewall_endpoint_ids list must not be referenced; use the AZ-keyed map"
+    )
+    assert "local.tgw_rt_order" not in text, (
+        "tgw_rt_order positional ordering helper must not remain"
+    )
+
+
+def test_inspection_routing_endpoint_var_is_az_keyed_map():
+    text = _read(IR_VARS)
+    m = re.search(r'variable\s+"firewall_endpoint_ids_by_az"\s*\{(.*?)\n\}', text, re.DOTALL)
+    assert m, "firewall_endpoint_ids_by_az variable must be declared"
+    assert re.search(r"type\s*=\s*map\(string\)", m.group(1)), (
+        "firewall_endpoint_ids_by_az must be map(string), keyed by AZ index"
+    )
+
+
+def test_network_firewall_emits_az_keyed_endpoint_map():
+    text = _read(NFW_OUT)
+    assert re.search(r'output\s+"endpoint_ids_by_az"', text), (
+        "network-firewall must export endpoint_ids_by_az"
+    )
+    # The map must be keyed by tostring(i) (AZ index), not by AZ name, so its
+    # keys line up with inspection_tgw_route_table_ids keys ("0","1",...).
+    assert re.search(r'tostring\(i\)\s*=>\s*local\.endpoint_id_by_az_name\[az\]', text), (
+        "endpoint_ids_by_az must be keyed by AZ index (tostring(i))"
+    )
+
+
+def test_network_firewall_has_endpoint_per_az_check():
+    """Runtime guard: a check block must assert one endpoint per AZ so a missing
+    endpoint fails loudly at apply time instead of silently producing a
+    wrong-length map that misaligns per-AZ routes."""
+    text = _read(NFW_MAIN)
+    assert re.search(r'check\s+"firewall_endpoint_per_az"', text), (
+        "network-firewall must declare the firewall_endpoint_per_az check block"
+    )
+    assert "availability_zone == az" in text
+
+
+def test_main_passes_az_keyed_endpoint_map():
+    main = _read(MAIN_TF)
+    block = _module_block(main, "inspection_routing")
+    assert re.search(r"firewall_endpoint_ids_by_az\s*=\s*module\.network_firewall\.endpoint_ids_by_az", block), (
+        "main.tf must pass the AZ-index-keyed endpoint map to inspection_routing"
+    )
+    assert not re.search(r"firewall_endpoint_ids\s*=\s*module\.network_firewall\.endpoint_ids", block), (
+        "main.tf must not pass the positional firewall_endpoint_ids list"
+    )
 
 
 def test_spoke_cidrs_include_all_workload_vpcs():

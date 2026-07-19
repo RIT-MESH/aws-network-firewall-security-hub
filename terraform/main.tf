@@ -208,8 +208,10 @@ module "inspection_routing" {
   workload_default_route_table_ids = local.workload_default_route_table_ids
 
   # Phase 4: wire the per-AZ firewall endpoint default routes.
-  firewall_routes_enabled = true
-  firewall_endpoint_ids   = module.network_firewall.endpoint_ids
+  # AZ-index-keyed map (not a positional list) so each inspection TGW attachment
+  # subnet route table points to the same-AZ firewall endpoint deterministically.
+  firewall_routes_enabled     = true
+  firewall_endpoint_ids_by_az = module.network_firewall.endpoint_ids_by_az
 }
 
 # ----- 6. Monitoring (dashboard, metric filters, alarms) -----
