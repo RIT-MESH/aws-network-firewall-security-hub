@@ -201,7 +201,7 @@ aws-network-firewall-security-hub/
 │   ├── cost-considerations.md         # Cost drivers + minimization
 │   ├── security-decisions.md          # Architectural decisions
 │   ├── firewall-logging.md           # Log fields + troubleshooting
-│   ├── limitations.md                 # Known limitations + runtime defect
+│   ├── limitations.md                 # Known limitations + resolved defects
 │   └── portfolio-demo.md              # Demo script
 │
 ├── terraform/
@@ -567,15 +567,18 @@ When publishing evidence, screenshots, or documentation, replace all account-spe
 
 ## Known Limitations
 
-- Static tests prove configuration intent, not runtime behavior.
 - AWS Network Firewall does not provide full Suricata feature parity. Rules must be single-line.
-- **Runtime defect:** Centralized inspection routing — the firewall received 0 packets despite all route tables, TGW associations, and endpoint mappings being verified correct. This requires VPC flow logs and/or packet capture to diagnose.
-- SSM access was resolved during prior testing by deploying PrivateLink interface VPC endpoints (ssm, ssmmessages, ec2messages) in each workload VPC.
 - CloudWatch log metric-filter field names assume the published AWS schema; verify against deployed logs.
 - A dedicated logging-delivery alarm is not implemented (no reliable built-in metric).
 - The S3 log bucket name uses account ID and Region suffix (via data sources, not hardcoded) for global uniqueness.
 
-See `docs/limitations.md` for full details.
+All previously documented runtime defects have been resolved and validated:
+- Centralized inspection routing (AZ-keyed endpoint mapping + return-path routes) - fixed and verified.
+- Domain-list race condition (replaced with native Suricata tls.sni rules + alert_strict) - fixed and verified.
+- SSM connectivity (PrivateLink interface VPC endpoints: ssm, ssmmessages, ec2messages) - fixed and verified.
+- All 20 runtime traffic tests passed before cleanup. See the Runtime Validation Matrix above.
+
+See `docs/limitations.md` for full historical details.
 
 ---
 
