@@ -51,6 +51,39 @@ rejects a bare `aws:drop` stateless default so the defect cannot recur. The
 earlier AZ-index-keyed endpoint mapping hardening remains in place (it was a
 real fragility, just not the root cause).
 
+## Stateful rule defects (post-fix runtime finding)
+
+After the stateless-default fix (`aws:forward_to_sfe`), the stateful engine
+receives traffic, but runtime validation found two separate stateful-rule
+defects that prevent the intended allow/DNS policy from working:
+
+1. **Approved-DNS pass rules are shadowed by the unauthorized-DNS deny rules.**
+   The deny rules use `$LAB_EXTERNAL_NET = 0.0.0.0/0` for destination port 53,
+   which includes the shared-services CIDR (`$LAB_SHARED_NET`). In STRICT_ORDER
+   the deny rules (priority 100) evaluate before the DNS pass rules
+   (priority 300), so workload DNS to the approved shared-services resolver
+   (10.3.0.0/16:53) is dropped by `sid 10000023` / `sid 10000025` instead of
+   passed by `sid 10000040` / `sid 10000041`. Confirmed in the ALERT log.
+   Fix direction: exclude the shared-services CIDR from the unauthorized-DNS
+   deny rules (e.g. a negated destination set or a higher-priority DNS pass),
+   or raise the DNS pass priority above the deny priority.
+
+2. **TLS SNI domain-list rules (allowed-domains ALLOWLIST and blocked-domains
+   DENYLIST) do not pass/drop as intended under the `drop_strict` stateful
+   default.** Allowed HTTPS to `example.com` (in the ALLOWLIST) is dropped by
+   the stateful default (`PassedPackets = 0`), and restricted-domain HTTPS to
+   `restricted.example.org` (in the DENYLIST) is dropped by the default rather
+   than by the DENYLIST rule (no DENYLIST ALERT event). The TLS SNI rules appear
+   not to evaluate before the default drop applied to the TCP handshake. Fix
+   direction: review the stateful engine stream-exception policy and the
+   domain-list rule group configuration under STRICT_ORDER with `drop_strict`,
+   or add explicit stateful pass rules for the TLS handshake to the allowed
+   domains.
+
+These are stateful-rule/design defects, not routing defects, and are outside the
+stateless-default fix scope. Until they are corrected, allowed HTTPS egress and
+approved DNS cannot be validated as PASS, so the project remains "Deployed,
+runtime validation incomplete."
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).

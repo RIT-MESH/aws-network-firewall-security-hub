@@ -11,7 +11,7 @@ A centralized multi-VPC AWS network-security reference architecture using **AWS 
 
 ## Deployment and Validation Status
 
-> **Deployment status:** Previously deployed to AWS for runtime testing; all AWS resources have since been destroyed (Terraform state is empty, 0 entries). Infrastructure health, routing configuration, firewall readiness, logging, and monitoring were partially verified during the prior deployment. Full traffic-policy and return-path validation remains pending due to a centralized inspection routing defect (firewall received 0 packets despite correct route-table configuration). The project is **not** "deployed and validated."
+> **Deployment status:** Currently deployed to AWS (151 managed resources, Terraform state non-empty) for runtime validation in a lab environment. The centralized-inspection routing root cause was identified and fixed: the Network Firewall stateless default action was `aws:drop`, which dropped all traffic at the stateless engine before the stateful rules could evaluate it (the firewall received packets but `PassedPackets = 0`). The fix (`stateless_default_actions = ["aws:forward_to_sfe"]`) is applied and verified live — the stateful engine now receives traffic. Runtime validation is **incomplete**: explicit 5-tuple deny rules (dev→prod, telnet, unauthorized external DNS) block correctly with logged SIDs, and CloudWatch ALERT delivery, S3 FLOW delivery, dashboard, and SSM access are verified; however, allowed HTTPS egress and approved-DNS tests fail due to two additional stateful-rule defects found during validation (a DNS deny-rule CIDR overlap that shadows the approved-DNS pass rules, and TLS SNI domain-list rules not passing allowed domains under the `drop_strict` stateful default). The project is **not** "deployed and validated."
 >
 > **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
 
@@ -404,23 +404,32 @@ This step requires explicit human approval. Do not automate it.
 
 ## Runtime Validation Matrix
 
+Verified against the live deployment after the stateless-default fix. Evidence is sanitized; see `docs/limitations.md` for the defects.
+
 | Test | Status | Notes |
 |------|--------|-------|
-| Infrastructure deployment | PASS | All resources created successfully via `terraform apply` |
-| Firewall READY / IN_SYNC | PASS | Verified via `describe-firewall` during prior deployment |
-| Route configuration | PARTIAL | All route tables, TGW associations, and endpoint mappings verified correct; however, firewall received 0 packets |
-| CloudWatch alert logging | PARTIAL | Log stream created (delivery path confirmed); no alert events because no traffic reached the firewall |
-| S3 flow logging | FAIL | 0 objects delivered; no traffic reached the firewall to log |
-| SSM access | PASS | 3/3 test instances managed via PrivateLink (verified with SSM commands) |
-| Allowed HTTPS egress | NOT TESTED | Egress timed out; traffic did not reach the firewall |
-| Blocked Telnet | NOT TESTED | Traffic did not reach the firewall |
-| Development-to-production blocking | NOT TESTED | Traffic did not reach the firewall |
-| DNS policy enforcement | NOT TESTED | Traffic did not reach the firewall |
-| Restricted-domain enforcement | NOT TESTED | Traffic did not reach the firewall |
-| Return-path symmetry | NOT TESTED | No traffic flow to evaluate |
-| Cleanup status | PASS | Terraform state is empty (0 entries); all AWS resources destroyed |
+| Infrastructure deployment | PASS | 151 resources applied (main + recovery + firewall-policy fix) |
+| Firewall READY / IN_SYNC | PASS | 2 endpoints READY, AZ-aligned (live `describe-firewall`) |
+| Route configuration | PASS | TGW subnets route 0.0.0.0/0 to the same-AZ NFW endpoint (`GatewayId` = `vpce-`), no blackhole, no workload IGW bypass |
+| Stateless default forwards to stateful | PASS | Live `stateless_default_actions = aws:forward_to_sfe`; stateful `ReceivedPackets` > 0 (was 0 before the fix) |
+| Firewall metric activity | PASS | Stateless 1324 received / 1285 dropped; stateful 39 received / 39 dropped / 0 passed |
+| Dev-to-Production SSH blocking | PASS | Client timeout + ALERT `sid 10000020` |
+| Dev-to-Production app-port blocking | PASS | Client timeout + ALERT `sid 10000021` (dport 8080) |
+| Outbound Telnet blocking | PASS | Client timeout + ALERT `sid 10000022` |
+| Unauthorized external DNS (TCP) blocking | PASS | Client timeout + ALERT `sid 10000025` |
+| Prohibited test-destination blocking | PASS | Stateless drop (blocked-destination TEST-NET CIDR) |
+| Unmatched cross-VPC blocking | PASS | Stateful default `aws:drop_strict` |
+| No direct firewall bypass | PASS | Workload VPCs have no Internet Gateway route |
+| CloudWatch ALERT delivery | PASS | 19 ALERT events with SIDs observed in the log group |
+| S3 FLOW delivery | PASS | FLOW log objects delivered to the log bucket |
+| CloudWatch dashboard | PASS | Firewall dashboard present |
+| SSM access | PASS | 3/3 test instances Online via PrivateLink |
+| Allowed HTTPS egress (example.com) | FAIL | Stateful drops the flow (`PassedPackets = 0`); allowed-domains ALLOWLIST not passing TLS SNI under the `drop_strict` stateful default |
+| Approved DNS (UDP/TCP) to shared resolver | FAIL | Shadowed by unauthorized-DNS deny rules (`$LAB_EXTERNAL_NET = 0.0.0.0/0` includes the shared CIDR; deny priority 100 < DNS pass priority 300) |
+| Restricted-domain blocking (DENYLIST) | FAIL | Flow dropped by the stateful default, not by the blocked-domains DENYLIST (TLS SNI rule did not evaluate) |
+| Return-path symmetry | NOT VALIDATED | No allowed flow succeeded |
 
-The centralized inspection routing defect (firewall receiving 0 packets despite correct configuration) is documented in `docs/limitations.md` and requires VPC flow logs and/or packet capture to diagnose.
+The stateless-default root cause is fixed and verified. The remaining FAILs are separate stateful-rule defects (DNS deny-rule CIDR overlap; TLS SNI domain-list rules under `drop_strict`) documented in `docs/limitations.md`. They require stateful-rule redesign, which is outside the stateless-default fix scope.
 
 ---
 
