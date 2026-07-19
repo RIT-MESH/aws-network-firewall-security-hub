@@ -40,15 +40,25 @@ variable "stateful_rule_order" {
 }
 
 variable "stateless_default_actions" {
-  description = "Default action for stateless traffic that matches no stateless rule."
+  description = "Default action for stateless traffic that matches no stateless rule. Must forward to the stateful engine (aws:forward_to_sfe) so the configured stateful allow/deny/alert/DNS/domain-list policies can evaluate traffic; a stateless aws:drop default would drop all traffic before stateful evaluation and silently bypass the entire stateful policy."
   type        = list(string)
-  default     = ["aws:drop"]
+  default     = ["aws:forward_to_sfe"]
+
+  validation {
+    condition     = contains(var.stateless_default_actions, "aws:forward_to_sfe")
+    error_message = "stateless_default_actions must contain aws:forward_to_sfe so unmatched stateless traffic reaches the stateful engine. A bare aws:drop default bypasses the stateful policy."
+  }
 }
 
 variable "stateless_fragment_default_actions" {
-  description = "Default action for stateless fragmented traffic that matches no stateless rule."
+  description = "Default action for stateless fragmented traffic that matches no stateless rule. Must forward to the stateful engine (aws:forward_to_sfe) for the same reason as stateless_default_actions."
   type        = list(string)
-  default     = ["aws:drop"]
+  default     = ["aws:forward_to_sfe"]
+
+  validation {
+    condition     = contains(var.stateless_fragment_default_actions, "aws:forward_to_sfe")
+    error_message = "stateless_fragment_default_actions must contain aws:forward_to_sfe so unmatched fragmented traffic reaches the stateful engine."
+  }
 }
 
 variable "stateful_default_actions" {

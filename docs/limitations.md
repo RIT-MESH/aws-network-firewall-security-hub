@@ -13,65 +13,42 @@ behavior against the deployed firewall.
 
 ## Centralized inspection routing (runtime finding)
 
-During runtime validation, the firewall received zero packets despite all route
-tables, Transit Gateway associations, and firewall endpoint mappings appearing
-correct. Traffic from test instances times out before reaching the firewall.
+During runtime validation, the firewall appeared to receive "zero packets" and
+all allowed traffic timed out, despite all route tables, Transit Gateway
+associations, and firewall endpoint mappings being verified correct.
 
-### Static review outcome
+### Verified root cause (runtime evidence)
 
-A full static review of the routing code confirmed the intended egress, return,
-and cross-VPC paths are correct: workload app subnets default to the Transit
-Gateway; the workload TGW route table forwards 0.0.0.0/0 to the inspection
-attachment; the inspection TGW attachment subnet route tables forward
-0.0.0.0/0 to the per-AZ firewall endpoint; the firewall subnet route tables
-forward 0.0.0.0/0 to the per-AZ NAT Gateway and spoke CIDRs back to the Transit
-Gateway; appliance mode is enabled only on the inspection attachment (the
-standard, correct configuration).
+The routing was correct all along. The actual root cause was the firewall
+**policy stateless default action**: `stateless_default_actions = ["aws:drop"]`
+dropped every packet at the stateless engine when no stateless rule matched.
+The only stateless rule group is the prohibited-destination drop. All other
+traffic (allowed HTTPS, DNS, cross-VPC, etc.) matched no stateless rule, hit the
+`aws:drop` default, and was dropped **before the stateful engine ran** — so the
+stateful allow/deny/alert/DNS/domain-list rules never evaluated any traffic.
 
-### Leading root-cause hypotheses (require runtime diagnosis)
+CloudWatch metrics (dimensions `FirewallName` + `AvailabilityZone` + `Engine`)
+confirmed this: `ReceivedPackets = 2419`, `DroppedPackets = 2419` (stateless),
+`PassedPackets = 0`, with zero stateful processing. This matched the original
+symptom: the firewall receives packets but passes none to the stateful engine.
 
-1. **Endpoint-to-AZ mapping fragility (now hardened).** The original code coupled
-   the inspection TGW route tables and the firewall endpoints positionally
-   (`firewall_endpoint_ids[count.index]` aligned with a sorted-key route-table
-   list). This relies on two independently-ordered structures coincidentally
-   matching. A mismatch (e.g. from unordered `sync_states` or an AZ-name/zone-id
-   format difference) would silently route an inspection TGW attachment subnet in
-   AZ N to the firewall endpoint in AZ M, after which the stateful firewall and
-   appliance-mode symmetry drop the flow without it appearing as "received" on
-   the expected endpoint. The mapping has been rewritten to be explicit and
-   AZ-index-keyed (see the next section).
-2. **Per-AZ `tgw -> firewall` route absent or blackhole at test time.** If the
-   firewall endpoints were not yet IN_SYNC when traffic tests ran, the
-   `0.0.0.0/0 -> vpc_endpoint` route exists in the route table but the endpoint
-   is not installed, so traffic blackholes before the firewall. A
-   `firewall_endpoint_per_az` check block and an extended `scripts/test-routes.sh`
-   now make this detectable before traffic tests.
-3. **TGW appliance-mode AZ asymmetry or a propagation issue** not visible in
-   static validation, requiring VPC flow logs and/or packet capture.
+Two earlier false conclusions were corrected during diagnosis:
+- A route-target **classification defect** (an NFW endpoint route is returned by
+  `describe-route-tables` with a `vpce-` value in `GatewayId`, not
+  `VpcEndpointId`) produced a false "IGW bypass" report. Fixed in
+  `scripts/classify_route.py` with regression coverage.
+- A **CloudWatch metric dimension defect** (querying `Firewall` instead of
+  `FirewallName`) produced a false "0 packets received" report.
 
-### Hardening applied (static fix)
+### Fix applied
 
-- The inspection-routing module now receives `firewall_endpoint_ids_by_az` (a
-  `map(string)` keyed by AZ index) instead of a positional `list(string)`. The
-  `tgw_to_firewall` route aligns the route table and the endpoint by the SAME AZ
-  key (`each.key`), eliminating positional coupling.
-- The network-firewall module exports `endpoint_ids_by_az` and declares a
-  `firewall_endpoint_per_az` check block that fails loudly at apply time if any
-  AZ is missing exactly one endpoint.
-- `scripts/test-routes.sh` now prints/executes read-only checks for: the
-  inspection TGW attachment subnet `0.0.0.0/0 -> firewall endpoint` routes
-  (including route State), firewall endpoint-to-AZ alignment, firewall
-  IN_SYNC/READY status, and NAT Gateway state.
-
-### Remaining runtime work
-
-Because the AWS resources were destroyed after the prior test (Terraform state is
-empty), the hypotheses above cannot be confirmed without a redeployment. After
-an approved apply, run `scripts/test-routes.sh --run` BEFORE traffic tests to
-confirm the per-AZ routes are active and endpoints are IN_SYNC, then proceed with
-the runtime validation matrix. Do not mark tests PASS without packet-level
-evidence.
-
+`stateless_default_actions` and `stateless_fragment_default_actions` now default
+to `["aws:forward_to_sfe"]`, so unmatched stateless traffic reaches the stateful
+engine. The stateless prohibited-destination drop rule group remains attached,
+and the stateful default remains `["aws:drop_strict"]`. Variable validation
+rejects a bare `aws:drop` stateless default so the defect cannot recur. The
+earlier AZ-index-keyed endpoint mapping hardening remains in place (it was a
+real fragility, just not the root cause).
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).
