@@ -12,8 +12,8 @@ A centralized multi-VPC AWS network-security reference architecture using **AWS 
 ## Deployment and Validation Status
 
 > **Deployment status:** Previously deployed to AWS for runtime testing; all AWS resources have since been destroyed (Terraform state is empty, 0 entries). Infrastructure health, routing configuration, firewall readiness, logging, and monitoring were partially verified during the prior deployment. Full traffic-policy and return-path validation remains pending due to a centralized inspection routing defect (firewall received 0 packets despite correct route-table configuration). The project is **not** "deployed and validated."
-
->> **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
+>
+> **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
 
 ---
 
