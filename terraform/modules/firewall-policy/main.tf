@@ -20,6 +20,10 @@ locals {
 
   tls_domains_count = (length(var.allowed_domains) > 0 || length(var.blocked_domains) > 0) ? 1 : 0
 
+  # Capacity for the tls-domains rule group. Must accommodate all pass/drop
+  # domain rules plus the catch-all server-response drop rule.
+  tls_domains_capacity = max(10, length(var.allowed_domains) + length(var.blocked_domains) + 1)
+
   stateful_refs = [
     for k, g in var.stateful_rule_groups : {
       key      = k
@@ -116,7 +120,7 @@ resource "aws_networkfirewall_rule_group" "tls_domains" {
   # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
   name     = "${var.name}-tls-domains"
-  capacity = var.domain_rule_group_capacity
+  capacity = local.tls_domains_capacity
   type     = "STATEFUL"
 
   rule_group {
