@@ -373,13 +373,13 @@ yamllint -c .yamllint.yaml .
 
 Deployment is staged. **Never run `terraform apply` without explicit human review.**
 
-**Stage 1: Static validation (no AWS credentials)**
+#### Stage 1: Static validation (no AWS credentials)
 
 ```bash
 make validate
 ```
 
-**Stage 2: Read-only planning (AWS credentials required)**
+#### Stage 2: Read-only planning (AWS credentials required)
 
 ```bash
 cd terraform
@@ -390,7 +390,7 @@ terraform plan -out=tfplan
 
 Never commit `tfplan` (it is gitignored). The plan file may contain sensitive information.
 
-**Stage 3: Human-reviewed deployment**
+#### Stage 3: Human-reviewed deployment
 
 After reviewing the plan:
 
