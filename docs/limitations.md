@@ -99,6 +99,7 @@ policy/rule-group apply scope, and requires separate approval. Until it is
 fixed, allowed HTTPS, approved DNS TCP, restricted-domain blocking, and
 return-path symmetry cannot be validated as PASS, so the project remains
 "Deployed, runtime validation incomplete."
+
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).

@@ -432,7 +432,8 @@ Verified against the live deployment after the stateless-default fix. Evidence i
 | Approved DNS TCP | FAIL | Forward passes but the TCP RST return does not reach the client — return path broken |
 | Restricted-domain blocking (DENYLIST) | FAIL | The TLS ClientHello never reaches the firewall (return path broken), so the DENYLIST cannot evaluate; flow dropped by default |
 | Return-path symmetry | FAIL | Inspection VPC public subnet route tables lack spoke-CIDR routes; NAT return to spoke private IPs is mis-routed to the IGW and dropped |
-The stateless-default root cause is fixed and verified. The remaining FAILs are separate stateful-rule defects (DNS deny-rule CIDR overlap; TLS SNI domain-list rules under `drop_strict`) documented in `docs/limitations.md`. They require stateful-rule redesign, which is outside the stateless-default fix scope.
+
+The stateless-default root cause is fixed and verified. The stateful DNS rule ordering and stream-exception-policy defects are also fixed (commit af56b8b, applied): the stateful engine now passes traffic (`PassedPackets` 0 -> 13) and approved DNS UDP passes. The remaining FAILs (allowed HTTPS, approved DNS TCP, restricted-domain, return-path symmetry) share a single confirmed root cause: the inspection VPC public subnet route tables are missing spoke-CIDR -> firewall-endpoint routes, so the NAT gateway return traffic to spoke private IPs is mis-routed to the IGW and dropped. Fixing this requires adding route resources, which is outside the firewall-policy/rule-group apply scope and is documented in `docs/limitations.md`.
 
 ---
 
