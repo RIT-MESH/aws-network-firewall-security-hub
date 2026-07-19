@@ -13,7 +13,7 @@ A centralized multi-VPC AWS network-security reference architecture using **AWS 
 
 > **Deployment status:** Previously deployed to AWS for runtime testing; all AWS resources have since been destroyed (Terraform state is empty, 0 entries). Infrastructure health, routing configuration, firewall readiness, logging, and monitoring were partially verified during the prior deployment. Full traffic-policy and return-path validation remains pending due to a centralized inspection routing defect (firewall received 0 packets despite correct route-table configuration). The project is **not** "deployed and validated."
 
-> **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
+>> **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
 
 ---
 
@@ -373,13 +373,13 @@ yamllint -c .yamllint.yaml .
 
 Deployment is staged. **Never run `terraform apply` without explicit human review.**
 
-#### Stage 1: Static validation (no AWS credentials)
+### Stage 1: Static validation (no AWS credentials)
 
 ```bash
 make validate
 ```
 
-#### Stage 2: Read-only planning (AWS credentials required)
+### Stage 2: Read-only planning (AWS credentials required)
 
 ```bash
 cd terraform
@@ -390,7 +390,7 @@ terraform plan -out=tfplan
 
 Never commit `tfplan` (it is gitignored). The plan file may contain sensitive information.
 
-#### Stage 3: Human-reviewed deployment
+### Stage 3: Human-reviewed deployment
 
 After reviewing the plan:
 
