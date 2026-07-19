@@ -1,0 +1,68 @@
+flowchart LR
+    %% Primary traffic processing flow through the centralized inspection architecture
+
+    subgraph Source["Source VPC"]
+        WL["Workload<br/>instance"]
+        RT1["App subnet<br/>route table<br/>0.0.0.0/0 -> TGW"]
+    end
+
+    subgraph TGW["Transit Gateway"]
+        TWRT["Workload route table<br/>0.0.0.0/0 -> inspection"]
+        INSP["Inspection<br/>attachment<br/>(appliance mode)"]
+    end
+
+    subgraph NFW["Network Firewall - same AZ"]
+        TGWRT["TGW subnet<br/>route table<br/>-> firewall endpoint"]
+        SL{"Stateless<br/>evaluation"}
+        SF{"Stateful<br/>Suricata<br/>evaluation"}
+    end
+
+    subgraph Decide["Decision"]
+        ALLOW["ALLOW<br/>pass"]
+        BLOCK["BLOCK<br/>drop"]
+        ALERT["ALERT<br/>log only"]
+    end
+
+    subgraph Dest["Destination"]
+        NAT["NAT Gateway<br/>-> IGW -> Internet"]
+        cross["TGW -> dest VPC<br/>private subnet"]
+        DROP["Dropped<br/>no return traffic"]
+    end
+
+    subgraph Log["Logging & Monitoring"]
+        CW["CloudWatch<br/>ALERT logs"]
+        S3["S3<br/>FLOW log archive"]
+        DASH["Dashboard<br/>+ Alarms"]
+    end
+
+    WL --> RT1 --> TWRT --> INSP --> TGWRT --> SL
+
+    SL -->|"prohibited IP?<br/>yes"| BLOCK
+    SL -->|"no match<br/>-> stateful"| SF
+
+    SF -->|"tls.sni allowlist<br/>pass"| ALLOW
+    SF -->|"tls.sni denylist<br/>drop"| BLOCK
+    SF -->|"explicit pass rule<br/>(SSH, DNS, logging)"| ALLOW
+    SF -->|"explicit drop rule<br/>(dev->prod, telnet,<br/>external DNS)"| BLOCK
+    SF -->|"unmatched<br/>catch-all drop"| BLOCK
+
+    ALLOW -->|"internet egress"| NAT
+    ALLOW -->|"cross-VPC"| cross
+    BLOCK --> DROP
+    BLOCK -.->|"ALERT"| CW
+    BLOCK -.->|"FLOW"| S3
+    ALLOW -.->|"FLOW"| S3
+    CW --> DASH
+
+    %% Styling
+    classDef allow fill:#2d7d46,color:#fff,stroke:#1b5e20
+    classDef block fill:#c62828,color:#fff,stroke:#b71c1c
+    classDef decision fill:#f9a825,color:#000,stroke:#f57f17
+    classDef route fill:#1565c0,color:#fff,stroke:#0d47a1
+    classDef log fill:#7b1fa2,color:#fff,stroke:#4a148c
+
+    class ALLOW allow
+    class BLOCK,DROP block
+    class SL,SF decision
+    class RT1,TWRT,TGWRT route
+    class CW,S3,DASH log

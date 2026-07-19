@@ -25,8 +25,11 @@ The GitHub Actions workflow `.github/workflows/architecture-diagram.yml` verifie
 that committed artifacts are up to date on every pull request and push to
 `main`.
 
-## Mermaid diagram
+## Mermaid diagrams
 
 - `architecture.mmd` - Mermaid source for the topology with Availability Zones,
   route tables, forward and return paths. Also embedded in the root README
   inside a collapsible `<details>` section.
+- `traffic-flow.mmd` - Mermaid source for the primary traffic processing flow
+  diagram showing stateless/stateful evaluation and allow/block/alert decisions.
+  Scenario-specific flow diagrams are embedded in `architecture/traffic-flows.md`.
