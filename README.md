@@ -1,32 +1,29 @@
 # AWS Network Firewall Security Hub
 
-A production-style, deployment-ready centralized AWS network-security reference architecture using **AWS Network Firewall**, **AWS Transit Gateway**, multiple Amazon VPCs, **Terraform**, Suricata-compatible IPS rules, **CloudWatch** monitoring, **Amazon S3** log archival, automated **pytest** suites, and **GitHub Actions** CI/CD.
+![terraform](https://github.com/RIT-MESH/aws-network-firewall-security-hub/actions/workflows/terraform.yml/badge.svg)
+![security](https://github.com/RIT-MESH/aws-network-firewall-security-hub/actions/workflows/security.yml/badge.svg)
+![tests](https://github.com/RIT-MESH/aws-network-firewall-security-hub/actions/workflows/tests.yml/badge.svg)
+![documentation](https://github.com/RIT-MESH/aws-network-firewall-security-hub/actions/workflows/documentation.yml/badge.svg)
 
-> **Deployment status:** Designed, statically validated, and deployed to AWS for runtime testing (since cleaned up). The centralized inspection routing has a known runtime defect (documented in `docs/limitations.md`). Not yet "deployed and validated."
-
----
-
-## Table of Contents
-
-1. [Architecture Overview](#architecture-overview)
-2. [Network Topology](#network-topology)
-3. [Security Controls](#security-controls)
-4. [Traffic Policy Matrix](#traffic-policy-matrix)
-5. [Repository Structure](#repository-structure)
-6. [Terraform Modules](#terraform-modules)
-7. [Firewall Rules](#firewall-rules)
-8. [CI/CD Pipeline](#cicd-pipeline)
-9. [Prerequisites](#prerequisites)
-10. [Local Validation](#local-validation)
-11. [Deployment Guide](#deployment-guide)
-12. [Testing](#testing)
-13. [Cost Considerations](#cost-considerations)
-14. [Limitations](#limitations)
-15. [Portfolio](#portfolio)
+A centralized multi-VPC AWS network-security reference architecture using **AWS Network Firewall**, **Transit Gateway**, **Terraform**, Suricata-compatible IPS rules, **CloudWatch** monitoring, **Amazon S3** log archival, **SSM PrivateLink** management, automated **pytest** security suites, and **GitHub Actions** CI/CD with SHA-pinned third-party actions and blocking Checkov IaC scanning.
 
 ---
 
-## Architecture Overview
+## Deployment and Validation Status
+
+> **Deployment status:** Previously deployed to AWS for runtime testing; all AWS resources have since been destroyed (Terraform state is empty, 0 entries). Infrastructure health, routing configuration, firewall readiness, logging, and monitoring were partially verified during the prior deployment. Full traffic-policy and return-path validation remains pending due to a centralized inspection routing defect (firewall received 0 packets despite correct route-table configuration). The project is **not** "deployed and validated."
+
+> **Warning:** Terraform state files (`terraform.tfstate`) and saved plan files (`tfplan`) may contain sensitive information including resource IDs, IP addresses, and account identifiers. These files are gitignored and must never be committed, shared, or published.
+
+---
+
+## Business Problem
+
+Organizations need a single, centralized inspection point for all east-west and north-south traffic so that security policy is enforced consistently across production, development, and shared-services environments. This repository demonstrates that pattern without exposing workloads directly to the internet and without relying on per-VPC security appliances.
+
+---
+
+## Architecture Diagram
 
 ```mermaid
 flowchart TB
@@ -36,87 +33,71 @@ flowchart TB
     NFW[AWS Network Firewall x2 AZs]
     TGW[AWS Transit Gateway]
 
-    subgraph Insp["Inspection VPC — 10.0.0.0/16 — 2 AZs"]
-      direction TB
-      FWRT[Firewall route tables]
-      TGWRT[TGW attach route tables]
-      PUBRT[Public/NAT subnets]
+    subgraph Insp["Inspection VPC (2 AZs)"]
+      FWRT[Firewall route tables per AZ]
+      TGWRT[TGW attachment route tables per AZ]
+      PUBRT[Public / NAT subnets]
     end
 
-    subgraph Prod["Production VPC — 10.1.0.0/16 — 2 AZs"]
+    subgraph Prod["Production VPC (2 AZs)"]
       PRODAPP[Private app subnets]
     end
-    subgraph Dev["Development VPC — 10.2.0.0/16 — 2 AZs"]
+    subgraph Dev["Development VPC (2 AZs)"]
       DEVAPP[Private app subnets]
     end
-    subgraph Shared["Shared Services VPC — 10.3.0.0/16 — 2 AZs"]
+    subgraph Shared["Shared Services VPC (2 AZs)"]
       SHAPP[Private shared subnets]
     end
 
     PRODAPP -->|"0.0.0.0/0 default"| TGW
     DEVAPP -->|"0.0.0.0/0 default"| TGW
     SHAPP -->|"0.0.0.0/0 default"| TGW
-    TGW -->|"workload rt → inspection"| TGWRT
-    TGWRT -->|"0.0.0.0/0 → per-AZ endpoint"| NFW
+    TGW -->|"workload rt -> inspection"| TGWRT
+    TGWRT -->|"0.0.0.0/0 -> per-AZ endpoint"| NFW
     NFW --> FWRT
-    FWRT -->|"0.0.0.0/0 → per-AZ NAT"| NAT
-    FWRT -.->|"spoke CIDRs → TGW"| TGW
+    FWRT -->|"0.0.0.0/0 -> per-AZ NAT"| NAT
+    FWRT -.->|"spoke CIDRs -> TGW"| TGW
     NAT --> PUBRT
-    PUBRT -->|"0.0.0.0/0 → IGW"| IGW
+    PUBRT -->|"0.0.0.0/0 -> IGW"| IGW
     IGW --> Internet
     Internet -.->|"return via NAT, symmetric AZ"| NAT
 ```
 
-### Design principles
+---
 
-- **Centralized inspection**: all workload egress and cross-VPC traffic flows through a single AWS Network Firewall in a dedicated inspection VPC.
-- **No direct internet access for workloads**: workload VPCs have no Internet Gateway; egress is forced through the Transit Gateway → inspection VPC → firewall → NAT → IGW.
-- **High availability**: firewall, NAT gateways, and TGW attachments span two Availability Zones.
-- **Symmetric routing**: Transit Gateway appliance mode on the inspection attachment keeps return traffic on the same AZ.
-- **SSM over PrivateLink**: management traffic stays on the AWS backbone (no SSH/RDP, no public endpoints).
-- **Strict egress allowlist**: HTTP/HTTPS egress is allowed only to approved domains via a Network Firewall ALLOWLIST rule group.
+## Traffic Flow Explanation
+
+**Egress (workload to internet):**
+
+1. Workload app subnet default route (0.0.0.0/0) sends traffic to the Transit Gateway.
+2. TGW workload route table forwards 0.0.0.0/0 to the inspection VPC attachment.
+3. Inspection TGW attachment subnet route table forwards 0.0.0.0/0 to the per-AZ Network Firewall endpoint.
+4. Firewall inspects traffic using stateful Suricata rules (STRICT_ORDER).
+5. Firewall subnet default route forwards to the per-AZ NAT Gateway.
+6. NAT Gateway egresses through the public subnet to the Internet Gateway.
+
+**Cross-VPC (e.g., production to shared services):**
+
+1. Production app subnet default route sends to the TGW.
+2. TGW workload route table forwards to the inspection VPC.
+3. Firewall inspects; if allowed, firewall subnet route for the destination spoke CIDR forwards back to the TGW.
+4. TGW inspection route table (propagated spoke CIDRs) forwards to the destination VPC.
+
+**Return path:** Transit Gateway appliance mode on the inspection attachment keeps return traffic on the same Availability Zone, preserving routing symmetry.
 
 ---
 
-## Network Topology
+## Implemented AWS Services
 
-| VPC | CIDR | Subnets (AZ A / AZ B) | Purpose |
-|-----|------|-----------------------|---------|
-| Inspection | 10.0.0.0/16 | firewall 10.0.1.0/24 / 10.0.2.0/24 | NFW endpoints |
-| | | tgw 10.0.3.0/24 / 10.0.4.0/24 | TGW attachment |
-| | | public 10.0.5.0/24 / 10.0.6.0/24 | NAT gateways + IGW |
-| Production | 10.1.0.0/16 | app 10.1.1.0/24 / 10.1.2.0/24 | Private workloads |
-| | | tgw 10.1.3.0/24 / 10.1.4.0/24 | TGW attachment |
-| Development | 10.2.0.0/16 | app 10.2.1.0/24 / 10.2.2.0/24 | Private workloads |
-| | | tgw 10.2.3.0/24 / 10.2.4.0/24 | TGW attachment |
-| Shared Services | 10.3.0.0/16 | shared 10.3.1.0/24 / 10.3.2.0/24 | Admin / DNS / logging |
-| | | tgw 10.3.3.0/24 / 10.3.4.0/24 | TGW attachment |
-
-### Transit Gateway route table domains
-
-| Route Table | Associated Attachments | Key Routes |
-|-------------------------------------|------------|
-| workload | production, development | 0.0.0.0/0 → inspection |
-| shared_services | shared_services | 0.0.0.0/0 → inspection |
-| inspection | inspection | propagated: 10.1/10.2/10.3 → spoke attachments |
-
-### Packet paths
-
-**Egress (workload → internet):**
-
-1. Workload app subnet → 0.0.0.0/0 → TGW
-2. TGW workload route table → 0.0.0.0/0 → inspection attachment
-3. Inspection TGW subnet → 0.0.0.0/0 → per-AZ firewall endpoint
-4. Firewall inspects (stateful Suricata rules)
-5. Firewall subnet → 0.0.0.0/0 → per-AZ NAT Gateway
-6. NAT → public subnet → IGW → Internet
-
-**Cross-VPC (e.g., production → shared services):**
-
-1. Production app → TGW → inspection → firewall
-2. Firewall inspects; firewall subnet → spoke CIDR → TGW → shared services
-
-**Return:** symmetric via appliance mode (same AZ).
+- AWS Network Firewall (stateful Suricata-compatible IPS + stateless rules)
+- AWS Transit Gateway (centralized connectivity, appliance mode)
+- Amazon VPC (4 VPCs, per-subnet route tables, default SG restricted)
+- NAT Gateways (2 AZs, centralized egress)
+- Amazon S3 (encrypted log archival, lifecycle, public access blocked)
+- CloudWatch Logs (alert log group, dashboard, metric filters, alarms)
+- AWS Systems Manager (SSM Session Manager via PrivateLink interface endpoints)
+- IAM (least-privilege SSM role for test instances)
+- GitHub Actions (CI/CD with SHA-pinned actions)
 
 ---
 
@@ -125,28 +106,28 @@ flowchart TB
 | Control | Implementation |
 |---------|---------------|
 | No public IPs on workloads | `associate_public_ip_address = false` |
-| No SSH/RDP ingress | SSM-only; test SG has no ingress |
+| No SSH/RDP ingress | SSM-only; test SG has no ingress rules |
 | IMDSv2 required | `http_tokens = "required"` on all test instances |
 | EBS encryption | `encrypted = true` on all volumes |
 | Default SG restricted | `aws_default_security_group` with no rules |
-| S3 public access blocked | `block_public_acls/policy/ignore/restrict = true` |
+| S3 public access blocked | All four block flags set to `true` |
 | S3 encryption | SSE-S3 (AWS-managed) |
-| S3 versioning + lifecycle | Enabled with Standard-IA → Deep Archive transitions |
-| NFW STRICT_ORDER | First-match-wins; explicit priorities |
+| S3 versioning + lifecycle | Enabled with Standard-IA then Deep Archive transitions |
+| NFW STRICT_ORDER | First-match-wins with explicit priorities |
 | Egress allowlist | Domain ALLOWLIST (only approved domains for HTTP/HTTPS) |
-| DNS blocking | Unauthorized UDP/TCP 53 blocked |
-| Dev→Prod blocking | Drop rules for SSH and all ports |
+| DNS blocking | Unauthorized UDP and TCP port 53 blocked |
+| Dev-to-Prod blocking | Drop rules for SSH and all ports |
 | Telnet blocking | Drop on port 23 |
 | Prohibited IP set | Drop to RFC 5737 TEST-NET ranges |
-| SSM PrivateLink | Interface endpoints for ssm/ssmmessages/ec2messages |
-| Production protection | Check block enforces firewall protection flags |
-| GitHub Actions SHA-pinned | All third-party actions pinned to commit SHAs |
+| SSM PrivateLink | Interface endpoints for ssm, ssmmessages, ec2messages |
+| Production protection | Check block enforces firewall protection flags when `environment == "production"` |
+| GitHub Actions SHA-pinned | All third-party actions pinned to immutable commit SHAs |
 | Blocking Checkov | IaC security scanning fails CI on findings |
 | Gitleaks | Secret scanning in CI |
 
 ---
 
-## Traffic Policy Matrix
+## Traffic-Policy Matrix
 
 | Source | Destination | Protocol | Expected | Rule |
 |--------|------------|----------|----------|------|
@@ -157,13 +138,13 @@ flowchart TB
 | Development | Production | any port | Block | deny sid 10000021 |
 | Shared Services | Production | SSH | Allow | allow sid 10000010 |
 | Production | Shared Services | 514/tcp | Allow | allow sid 10000011 |
-| Workloads | Shared Services | DNS 53 | Allow | dns sid 10000040/41 |
-| Workloads | External | DNS 53 UDP | Block | deny sid 10000023 |
-| Workloads | External | DNS 53 TCP | Block | deny sid 10000025 |
+| Workloads | Shared Services resolver | DNS 53 | Allow | dns sid 10000040/41 |
+| Workloads | External resolver | DNS 53 UDP | Block | deny sid 10000023 |
+| Workloads | External resolver | DNS 53 TCP | Block | deny sid 10000025 |
 | Any workload | Restricted domain | HTTP/HTTPS | Block | DENYLIST (priority 50) |
 | Any workload | Prohibited IP set | any | Block | deny sid 10000024 + stateless |
 | Any VPC | Unapproved cross-VPC | any | Block | stateful default `drop_strict` |
-| Return | Established | relevant | Allow | stateful tracking |
+| Return | Established connection | relevant | Allow statefully | stateful tracking |
 
 ---
 
@@ -184,8 +165,7 @@ aws-network-firewall-security-hub/
 │   ├── routing-design.md              # Route tables + packet paths
 │   ├── security-boundaries.md         # Trust zones + controls
 │   ├── traffic-flows.md               # Allowed/blocked flow table
-│   └── diagrams/
-│       └── architecture.mmd           # Mermaid topology diagram
+│   └── diagrams/architecture.mmd      # Mermaid topology diagram
 │
 ├── docs/
 │   ├── deployment-guide.md            # Staged deployment
@@ -194,7 +174,7 @@ aws-network-firewall-security-hub/
 │   ├── incident-response-playbook.md  # Detect/triage/contain
 │   ├── cost-considerations.md         # Cost drivers + minimization
 │   ├── security-decisions.md          # Architectural decisions
-│   ├── firewall-logging.md            # Log fields + troubleshooting
+│   ├── firewall-logging.md           # Log fields + troubleshooting
 │   ├── limitations.md                 # Known limitations + runtime defect
 │   └── portfolio-demo.md              # Demo script
 │
@@ -219,8 +199,8 @@ aws-network-firewall-security-hub/
 │
 ├── rules/
 │   ├── stateful/
-│   │   ├── allow.rules                # Pass: mgmt SSH, prod→shared logging
-│   │   ├── deny.rules                 # Drop: dev→prod, telnet, DNS, IPs
+│   │   ├── allow.rules                # Pass: mgmt SSH, prod->shared logging
+│   │   ├── deny.rules                 # Drop: dev->prod, telnet, DNS, IPs
 │   │   ├── alert.rules                # Alert: suspicious ports, RDP
 │   │   └── dns.rules                  # Pass: DNS to approved resolver
 │   ├── stateless/stateless-rules.yaml # Stateless drop spec
@@ -229,29 +209,29 @@ aws-network-firewall-security-hub/
 │   │   └── blocked-domains.txt        # Domain blocklist
 │   └── ip-sets/
 │       ├── home-networks.txt          # Workload CIDRs (doc)
-│       └── blocked-destinations.txt   # TEST-NET ranges
+│       └── blocked-destinations.txt  # TEST-NET ranges
 │
 ├── scripts/
 │   ├── validate.sh                    # Run all available tools
 │   ├── test-firewall-rules.sh         # Rule artifact validation
 │   ├── test-routes.sh                 # Read-only AWS route inspection
-│   ├── test-connectivity.sh           # Safe traffic scenario runner
-│   ├── generate-test-traffic.py       # Scenario-based traffic generator
-│   ├── analyze-firewall-logs.py       # Firewall log summarizer
+│   ├── test-connectivity.sh          # Safe traffic scenario runner
+│   ├── generate-test-traffic.py      # Scenario-based traffic generator
+│   ├── analyze-firewall-logs.py      # Firewall log summarizer
 │   ├── bootstrap.sh                   # Local setup instructions
 │   └── estimate-costs.sh              # Cost driver reference
 │
 ├── tests/
 │   ├── terraform/
-│   │   ├── test_structure.py          # Structure + leak guards (8 tests)
-│   │   ├── test_security.py           # S3/SG/IAM/firewall (14 tests)
-│   │   ├── test_routing.py            # Centralized inspection (14 tests)
-│   │   ├── test_naming.py             # Naming conventions (4 tests)
-│   │   └── test_ssm_endpoints.py      # SSM PrivateLink (12 tests)
+│   │   ├── test_structure.py          # Structure + leak guards
+│   │   ├── test_security.py           # S3/SG/IAM/firewall security
+│   │   ├── test_routing.py            # Centralized inspection routing
+│   │   ├── test_naming.py             # Naming conventions
+│   │   └── test_ssm_endpoints.py      # SSM PrivateLink validation
 │   ├── rules/
-│   │   ├── test_suricata_rules.py     # SID/msg/flow validation (16 tests)
-│   │   └── test_domain_lists.py       # Domain/IP-set integrity (6 tests)
-│   ├── test_utilities.py              # Traffic + log analyzer (16 tests)
+│   │   ├── test_suricata_rules.py     # SID/msg/flow validation
+│   │   └── test_domain_lists.py       # Domain/IP-set integrity
+│   ├── test_utilities.py              # Traffic + log analyzer tests
 │   └── fixtures/
 │       └── sample-alert-logs.json     # Sanitized fixture data
 │
@@ -273,59 +253,59 @@ aws-network-firewall-security-hub/
 
 ---
 
-## Terraform Modules
+## Terraform Module Overview
 
-| Module | Resources | Purpose |
-|--------|-----------|---------|
-| `vpc` | VPC, subnets, route tables, default SG, optional IGW, optional flow logs | Reusable VPC with map-driven subnets |
-| `transit-gateway` | TGW, attachments, route tables, associations, propagations, routes | Centralized connectivity with explicit routing |
-| `inspection-routing` | NAT gateways, EIPs, route entries | Centralized egress + firewall routing |
-| `network-firewall` | Firewall, logging config | HA firewall (2 AZ endpoints) |
-| `firewall-policy` | Policy, 7 rule groups, STRICT_ORDER | Stateful + stateless rules with domain lists |
-| `logging` | CloudWatch log groups, S3 bucket, resource policies | Operational + archival logging |
+| Module | Key Resources | Purpose |
+|--------|---------------|---------|
+| `vpc` | VPC, subnets, route tables, default SG, optional IGW, optional flow logs | Reusable VPC with map-driven subnets; does not assume every VPC needs every subnet type |
+| `transit-gateway` | TGW, VPC attachments, route tables, associations, propagations, routes | Centralized connectivity with explicit routing; appliance mode on inspection |
+| `inspection-routing` | NAT gateways, EIPs, route entries | Centralized egress + firewall routing; prevents workload internet bypass |
+| `network-firewall` | Firewall (2 AZ endpoints), logging config | HA firewall with protection flags and optional logging |
+| `firewall-policy` | Policy, 7 rule groups, STRICT_ORDER | Stateful + stateless rules with domain lists and IP sets |
+| `logging` | CloudWatch log groups, S3 bucket, resource policies | Operational alerts (CloudWatch) + encrypted S3 archival |
 | `monitoring` | Dashboard, metric filters, alarms, optional SNS | Firewall observability |
-| `test-workload` | EC2 instances, SGs, IAM role | Optional private test instances (SSM-only) |
-| `ssm-vpc-endpoints` | 9 interface endpoints, 3 SGs | PrivateLink for SSM management |
+| `test-workload` | EC2 instances, SGs, IAM role | Optional private test instances (SSM-only, no SSH/RDP) |
+| `ssm-vpc-endpoints` | 9 interface endpoints, 3 SGs | PrivateLink for SSM management traffic |
 
 ---
 
-## Firewall Rules
+## Firewall Rule Strategy
 
-### Stateful rule evaluation order (STRICT_ORDER)
+### Stateful evaluation (STRICT_ORDER)
 
 | Priority | Group | Type | Effect |
 |----------|-------|------|--------|
 | 50 | blocked-domains | DENYLIST | Drop listed domains (TLS_SNI / HTTP_HOST) |
-| 60 | allowed-domains | ALLOWLIST | Allow listed domains; drop all other HTTP/HTTPS |
-| 100 | deny | 5-tuple drop | Telnet, dev→prod, unauthorized DNS, prohibited IPs |
+| 60 | allowed-domains | ALLOWLIST | Allow listed domains; drop all other HTTP/HTTPS egress |
+| 100 | deny | 5-tuple drop | Telnet, dev-to-prod, unauthorized DNS, prohibited IPs |
 | 200 | alert | 5-tuple alert | Suspicious ports, outbound RDP (alert only) |
 | 300 | dns | 5-tuple pass | DNS to approved resolver (UDP + TCP) |
-| 400 | allow | 5-tuple pass | Mgmt SSH, prod→shared logging |
-| default | — | `drop_strict` | Anything unmatched is dropped |
+| 400 | allow | 5-tuple pass | Mgmt SSH, prod-to-shared logging |
+| default | none | `drop_strict` | Anything unmatched is dropped |
 
 ### SID allocation
 
 | Range | File |
 |-------|------|
-| 10000010–10000019 | allow.rules |
-| 10000020–10000029 | deny.rules |
-| 10000030–10000039 | alert.rules |
-| 10000040–10000049 | dns.rules |
+| 10000010-10000019 | allow.rules |
+| 10000020-10000029 | deny.rules |
+| 10000030-10000039 | alert.rules |
+| 10000040-10000049 | dns.rules |
 
-All rules are **single-line** (AWS Network Firewall requirement). See `rules/README.md` for details.
+All rules are single-line (AWS Network Firewall requirement). Drop actions also generate alert/flow logs. See `rules/README.md`.
 
 ---
 
-## CI/CD Pipeline
+## CI and Security Scanning
 
-| Workflow | Triggers | Checks | Blocking? |
-|----------|----------|--------|-----------|
-| `terraform` | PR + push (terraform/**) | fmt, init, validate, tflint | ✅ All |
-| `security` | PR + push | checkov, trivy (advisory), gitleaks | ✅ checkov + gitleaks |
-| `tests` | PR + push (tests/scripts/rules/terraform/**) | pytest, shellcheck, yamllint | ✅ All |
-| `documentation` | PR + push (**/*.md) | markdownlint, lychee (offline) | ✅ All |
+| Workflow | Triggers | Checks | Blocking |
+|----------|----------|--------|----------|
+| `terraform` | PR + push (terraform/**) | fmt, init (backend=false), validate, tflint | All blocking |
+| `security` | PR + push | checkov (blocking), trivy (advisory), gitleaks | checkov + gitleaks |
+| `tests` | PR + push (tests/scripts/rules/terraform/**) | pytest, shellcheck, yamllint | All blocking |
+| `documentation` | PR + push (**/*.md) | markdownlint, lychee (offline links) | All blocking |
 
-All third-party actions are **pinned to immutable commit SHAs**. No workflow runs `terraform apply`.
+All third-party actions are pinned to immutable commit SHAs. No workflow runs `terraform apply`.
 
 ---
 
@@ -334,16 +314,43 @@ All third-party actions are **pinned to immutable commit SHAs**. No workflow run
 - Terraform `>= 1.5.0, < 2.0`
 - AWS provider `~> 5.0`
 - Python 3.10+ with `pytest`
-- Optional: `tflint`, `checkov`, `tfsec`, `shellcheck`, `yamllint`, `markdownlint`, `pre-commit`
+- Optional: `tflint`, `checkov`, `shellcheck`, `yamllint`, `markdownlint`, `pre-commit`
+
+Static validation works **without** AWS credentials.
 
 ---
 
-## Local Validation
+## Authentication Guidance
+
+Use temporary AWS credentials with a non-root IAM identity. Never use the AWS root account for deployment.
+
+**Recommended methods:**
+
+- AWS IAM Identity Center (SSO) with `aws configure sso` (browser-based, no long-term keys)
+- AWS CLI with a named profile: `aws configure --profile <profile-name>`
+- Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (temporary credentials only)
+
+Do not paste credentials into the repository, commit messages, or documentation. Do not share credentials in pull requests or issues.
+
+---
+
+## Local Static Validation
 
 ```bash
 make validate
 # or
 scripts/validate.sh
+```
+
+### Quick Start
+
+```bash
+git clone https://github.com/RIT-MESH/aws-network-firewall-security-hub.git
+cd aws-network-firewall-security-hub
+pytest
+cd terraform
+terraform init -backend=false
+terraform validate
 ```
 
 ### Manual commands
@@ -355,90 +362,217 @@ terraform init -backend=false
 terraform validate
 cd ..
 pytest                          # 80 tests
-checkov -d terraform            # 274 passed, 0 failed
+checkov -d terraform            # 147 passed, 0 failed, 29 skipped
 shellcheck scripts/*.sh
 yamllint -c .yamllint.yaml .
 ```
 
 ---
 
-## Deployment Guide
+## Terraform Plan and Deployment Workflow
 
-See `docs/deployment-guide.md` for the full staged guide. Summary:
+Deployment is staged. **Never run `terraform apply` without explicit human review.**
 
-1. **Static validation** (`make validate`) — no AWS credentials.
-2. **Read-only planning** (`terraform plan -out=tfplan`) — credentials required.
-3. **Human-reviewed deployment** (`terraform apply tfplan`) — explicit approval only.
-4. **Traffic validation** — run test scenarios.
-5. **Evidence capture** — sanitized outputs.
-6. **Cleanup** (`terraform destroy`) — explicit approval only.
-
----
-
-## Testing
+**Stage 1: Static validation (no AWS credentials)**
 
 ```bash
-# Static tests (80 tests)
-pytest -q
-
-# Rule validation
-scripts/test-firewall-rules.sh
-
-# Traffic scenarios (dry-run)
-scripts/test-connectivity.sh
-
-# Log analysis
-python scripts/analyze-firewall-logs.py tests/fixtures/sample-alert-logs.json
+make validate
 ```
 
+**Stage 2: Read-only planning (AWS credentials required)**
+
+```bash
+cd terraform
+terraform init
+cp ../terraform/environments/lab/terraform.tfvars.example terraform.tfvars  # adjust
+terraform plan -out=tfplan
+```
+
+Never commit `tfplan` (it is gitignored). The plan file may contain sensitive information.
+
+**Stage 3: Human-reviewed deployment**
+
+After reviewing the plan:
+
+```bash
+terraform apply tfplan
+```
+
+This step requires explicit human approval. Do not automate it.
+
 ---
 
-## Cost Considerations
+## Runtime Validation Matrix
 
-This architecture may incur AWS charges for:
+| Test | Status | Notes |
+|------|--------|-------|
+| Infrastructure deployment | PASS | All resources created successfully via `terraform apply` |
+| Firewall READY / IN_SYNC | PASS | Verified via `describe-firewall` during prior deployment |
+| Route configuration | PARTIAL | All route tables, TGW associations, and endpoint mappings verified correct; however, firewall received 0 packets |
+| CloudWatch alert logging | PARTIAL | Log stream created (delivery path confirmed); no alert events because no traffic reached the firewall |
+| S3 flow logging | FAIL | 0 objects delivered; no traffic reached the firewall to log |
+| SSM access | PASS | 3/3 test instances managed via PrivateLink (verified with SSM commands) |
+| Allowed HTTPS egress | NOT TESTED | Egress timed out; traffic did not reach the firewall |
+| Blocked Telnet | NOT TESTED | Traffic did not reach the firewall |
+| Development-to-production blocking | NOT TESTED | Traffic did not reach the firewall |
+| DNS policy enforcement | NOT TESTED | Traffic did not reach the firewall |
+| Restricted-domain enforcement | NOT TESTED | Traffic did not reach the firewall |
+| Return-path symmetry | NOT TESTED | No traffic flow to evaluate |
+| Cleanup status | PASS | Terraform state is empty (0 entries); all AWS resources destroyed |
 
-- AWS Network Firewall endpoints (2 for HA) — per-endpoint hourly + per-GB processing
-- Transit Gateway (per-attachment hourly + per-GB data processing)
-- NAT Gateways (2 for HA) — per-endpoint hourly + per-GB
-- CloudWatch Logs ingestion + retention
-- S3 storage + lifecycle transitions
-- EC2 test instances (when `enable_test_workloads = true`)
-- SSM VPC endpoints (9 interface endpoints — per-endpoint-AZ hourly)
+The centralized inspection routing defect (firewall receiving 0 packets despite correct configuration) is documented in `docs/limitations.md` and requires VPC flow logs and/or packet capture to diagnose.
+
+---
+
+## Logging and Monitoring
+
+### CloudWatch
+
+- **Alert log group:** `/<project-prefix>/network-firewall/<environment>/alert` (configurable retention)
+- **Dashboard:** Firewall dashboard with dropped/passed/received packet metrics + log-metric widgets
+- **Metric filters:** `FirewallAlertCount` (alert log group)
+- **Alarms:** Alert-volume-high, Dropped-spikes (optional SNS notifications)
+
+### S3 Archival
+
+- **Bucket name:** dynamically derived from project prefix, account ID, and Region (via data sources, not hardcoded)
+- **Encryption:** SSE-S3 (AES256)
+- **Public access:** fully blocked (all four block flags)
+- **Versioning:** enabled
+- **Lifecycle:** Standard-IA then Deep Archive transitions
+- **Bucket policy:** grants `delivery.logs.amazonaws.com` `s3:GetBucketAcl` + `s3:PutObject`
+
+### AWS Network Firewall logging
+
+- ALERT to CloudWatch Logs (operational alerts)
+- FLOW to S3 (long-term archival)
+- Each log type routed to one destination (AWS NFW limit: max 2 `log_destination_config` blocks, unique `log_type` per destination)
+
+See `docs/firewall-logging.md` for log field descriptions and troubleshooting.
+
+---
+
+## Cost Warning
+
+This architecture may incur AWS charges. No fixed prices are published here. Review current AWS pricing before deploying.
+
+**Cost-relevant components:**
+
+- AWS Network Firewall: per-endpoint hourly + per-GB processing (2 endpoints for HA)
+- Transit Gateway: per-attachment hourly + per-GB data processing (4 attachments)
+- NAT Gateways: per-endpoint hourly + per-GB (2 for HA)
+- CloudWatch Logs: ingestion + retention
+- S3: storage + lifecycle transitions
+- EC2 test instances: only when `enable_test_workloads = true`
+- SSM VPC endpoints: per-endpoint-AZ hourly (9 endpoints when enabled)
 - Cross-AZ data transfer
 
-Review current AWS pricing before deploying. See `docs/cost-considerations.md`.
+**Minimize cost:**
+
+- Keep `enable_test_workloads = false` when not testing
+- Use the smallest instance types
+- Reduce log retention; disable S3 archival if not needed
+- Destroy resources when not in use
+
+See `docs/cost-considerations.md`.
 
 ---
 
-## Limitations
+## Privacy and Evidence-Sanitization Guidance
 
-- Static tests prove intent, not runtime behavior.
-- AWS Network Firewall does not provide full Suricata feature parity.
-- **Runtime defect**: centralized inspection routing — firewall received 0 packets despite correct route config. Requires VPC flow logs debugging.
-- SSM access resolved via PrivateLink (documented in `docs/limitations.md`).
+When publishing evidence, screenshots, or documentation, replace all account-specific identifiers with placeholders:
+
+```text
+<AWS_ACCOUNT_ID>
+<AWS_REGION>
+<VPC_ID>
+<SUBNET_ID>
+<ROUTE_TABLE_ID>
+<TRANSIT_GATEWAY_ID>
+<TGW_ATTACHMENT_ID>
+<FIREWALL_ARN>
+<FIREWALL_ENDPOINT_ID>
+<NAT_GATEWAY_ID>
+<ELASTIC_IP>
+<S3_BUCKET_NAME>
+<CLOUDWATCH_LOG_GROUP>
+<INSTANCE_ID>
+<PRIVATE_IP>
+```
+
+**Do not publish:**
+
+- AWS account IDs
+- IAM identities or ARNs
+- VPC, subnet, route table, TGW, endpoint, NAT, or instance IDs
+- Elastic or private IP addresses
+- S3 bucket names
+- Terraform state or plan output
+- CloudWatch log contents
+- Credentials or session data
+- Console URLs containing identifiers
+- Unsanitized screenshots
+
+**Warning:** Terraform state files and saved plan files may contain sensitive information. These are gitignored but must never be shared or published without sanitization.
+
+---
+
+## Known Limitations
+
+- Static tests prove configuration intent, not runtime behavior.
+- AWS Network Firewall does not provide full Suricata feature parity. Rules must be single-line.
+- **Runtime defect:** Centralized inspection routing — the firewall received 0 packets despite all route tables, TGW associations, and endpoint mappings being verified correct. This requires VPC flow logs and/or packet capture to diagnose.
+- SSM access was resolved during prior testing by deploying PrivateLink interface VPC endpoints (ssm, ssmmessages, ec2messages) in each workload VPC.
+- CloudWatch log metric-filter field names assume the published AWS schema; verify against deployed logs.
+- A dedicated logging-delivery alarm is not implemented (no reliable built-in metric).
+- The S3 log bucket name uses account ID and Region suffix (via data sources, not hardcoded) for global uniqueness.
 
 See `docs/limitations.md` for full details.
 
 ---
 
-## Portfolio
+## Cleanup Procedure
 
-> Built a deployment-ready centralized AWS network-security platform using AWS Network Firewall, Transit Gateway, multiple VPCs, Terraform, Suricata-compatible IPS rules, CloudWatch monitoring, S3 log archival, SSM PrivateLink, automated security testing, and GitHub Actions.
+Cleanup requires explicit human review and approval.
 
-### Resume bullet
+```bash
+cd terraform
 
-- Designed and deployed a centralized AWS Network Firewall inspection architecture across multi-VPC Transit Gateway topologies using Terraform, Suricata-compatible rules, CloudWatch monitoring, S3 log archival, SSM PrivateLink management, automated pytest suites (80 tests), blocking Checkov IaC scanning, and SHA-pinned GitHub Actions CI/CD.
+# Review what will be destroyed
+terraform plan -destroy
 
-### Demo script
+# Execute destroy (requires explicit approval)
+terraform destroy
+```
 
-See `docs/portfolio-demo.md` for a 5-minute walkthrough.
+If the S3 log bucket contains objects, empty it before destroying:
 
-### Release
+```bash
+aws s3 rb "s3://<S3_BUCKET_NAME>" --force
+```
 
-`v0.1.0` — centralized inspection reference (statically validated, deployed for runtime testing, cleaned up).
+For versioned buckets, delete all object versions first (use `aws s3api list-object-versions` + batch delete).
+
+After destroy, verify the Terraform state is empty:
+
+```bash
+terraform state list
+```
 
 ---
 
-## Disclaimer
+## Portfolio Summary
 
-Deployment status must be represented honestly. This project was deployed to AWS for runtime testing and has since been cleaned up (`terraform destroy` completed). The centralized inspection routing has a known runtime defect. Use "designed and statically validated" until all runtime tests pass with preserved evidence.
+> Built a centralized AWS network-security platform using AWS Network Firewall, Transit Gateway, multiple VPCs, Terraform, Suricata-compatible IPS rules, CloudWatch monitoring, S3 log archival, SSM PrivateLink management, automated pytest security suites, blocking Checkov IaC scanning, and SHA-pinned GitHub Actions CI/CD.
+
+### Resume Bullet
+
+- Designed and deployed a centralized AWS Network Firewall inspection architecture across multi-VPC Transit Gateway topologies using Terraform, Suricata-compatible stateful rules with STRICT_ORDER, CloudWatch monitoring, S3 encrypted log archival, SSM PrivateLink management, automated pytest suites (80 tests), blocking Checkov IaC scanning (147 checks), and SHA-pinned GitHub Actions CI/CD.
+
+---
+
+## License and Disclaimer
+
+MIT License. See `LICENSE`.
+
+Deployment status must be represented honestly. This project was deployed to AWS for runtime testing and has since been cleaned up. The centralized inspection routing has a known runtime defect. Use "designed and statically validated" until all runtime tests pass with preserved evidence. Do not use "deployed and validated" until every required runtime test passes.
