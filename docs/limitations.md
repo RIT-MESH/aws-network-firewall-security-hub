@@ -33,6 +33,7 @@ confirmed this: `ReceivedPackets = 2419`, `DroppedPackets = 2419` (stateless),
 symptom: the firewall receives packets but passes none to the stateful engine.
 
 Two earlier false conclusions were corrected during diagnosis:
+
 - A route-target **classification defect** (an NFW endpoint route is returned by
   `describe-route-tables` with a `vpce-` value in `GatewayId`, not
   `VpcEndpointId`) produced a false "IGW bypass" report. Fixed in
@@ -49,6 +50,7 @@ and the stateful default remains `["aws:drop_strict"]`. Variable validation
 rejects a bare `aws:drop` stateless default so the defect cannot recur. The
 earlier AZ-index-keyed endpoint mapping hardening remains in place (it was a
 real fragility, just not the root cause).
+
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).
