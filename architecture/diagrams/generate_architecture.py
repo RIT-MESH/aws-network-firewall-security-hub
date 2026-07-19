@@ -31,7 +31,6 @@ from diagrams.aws.management import (
     Cloudwatch,
     CloudwatchAlarm,
     CloudwatchLogs,
-    SystemsManager,
 )
 from diagrams.aws.network import (
     Endpoint,
@@ -70,6 +69,8 @@ GRAPH_ATTR = {
     "pad": "0.3",
     "ratio": "compress",
     "size": "24,14!",
+    "labelloc": "t",
+    "labeljust": "c",
 }
 NODE_ATTR = {
     "fontname": "Helvetica",
@@ -155,19 +156,21 @@ def _build_diagram() -> None:
 
     Layout strategy -- three horizontal sections, left to right:
     Left   – workload VPCs (compact, 2 nodes each)
-    Center – Transit Gateway + Inspection VPC with per-AZ firewall/NAT
+    Center – Transit Gateway cluster + Inspection VPC with per-AZ firewall/NAT
     Right  – Internet Gateway + Internet
-    A compact Logging & Monitoring cluster is placed alongside the firewall.
+    A compact Logging & Monitoring cluster sits alongside the firewall.
+    SSM management is represented by the PrivateLink endpoint labels alone;
+    no separate SSM Management node is drawn to avoid long cross-diagram edges.
     """
 
-    # ---- Internet (rightmost) -------------------------------------------
+    # ---- Internet (rightmost, outside AWS Region) -----------------------
     internet = InternetAlt1("Internet")
 
     # ---- AWS Region ------------------------------------------------------
     with Cluster("AWS Region"):
 
         # ================================================================
-        # LEFT: Workload VPCs (compact — 2 nodes per VPC)
+        # LEFT: Workload VPCs (compact -- 2 nodes per VPC)
         # ================================================================
 
         # --- Production VPC ---
@@ -192,13 +195,14 @@ def _build_diagram() -> None:
             )
 
         # ================================================================
-        # CENTER: Transit Gateway
+        # CENTER: Transit Gateway (compact cluster with attachments)
         # ================================================================
-        tgw = TGW("Transit\nGateway")
-        tgw_attach_prod = TGWAttach("Prod\nattach")
-        tgw_attach_dev = TGWAttach("Dev\nattach")
-        tgw_attach_shared = TGWAttach("Shared\nattach")
-        tgw_attach_insp = TGWAttach("Insp\nattach")
+        with Cluster("Transit Gateway"):
+            tgw = TGW("Transit\nGateway")
+            tgw_attach_prod = TGWAttach("Prod\nattach")
+            tgw_attach_dev = TGWAttach("Dev\nattach")
+            tgw_attach_shared = TGWAttach("Shared\nattach")
+            tgw_attach_insp = TGWAttach("Insp\nattach")
 
         # ================================================================
         # CENTER-RIGHT: Inspection VPC
@@ -228,7 +232,6 @@ def _build_diagram() -> None:
             s3_archive = S3("NFW FLOW\nLog Archive")
             cw_dash = Cloudwatch("CW\nDashboard")
             cw_alarm = CloudwatchAlarm("Metric\nAlarms")
-            ssm_mgmt = SystemsManager("SSM\nManagement")
             vpc_flow = VPCFlowLogs("VPC\nFlow Logs")
 
     # -----------------------------------------------------------------------
@@ -253,42 +256,25 @@ def _build_diagram() -> None:
     igw >> Edge(label="egress") >> internet
 
     # -----------------------------------------------------------------------
-    # Edges – TGW attachments (dashed for cross-VPC)
-    # -----------------------------------------------------------------------
-    tgw >> Edge(style="dashed", label="cross-VPC") >> tgw_attach_prod
-    tgw >> Edge(style="dashed") >> tgw_attach_dev
-    tgw >> Edge(style="dashed") >> tgw_attach_shared
-
-    # -----------------------------------------------------------------------
     # Edges – Firewall policy (dotted)
     # -----------------------------------------------------------------------
     fw_policy >> Edge(style="dotted", label="policy") >> fw_a
     fw_policy >> Edge(style="dotted") >> fw_b
 
     # -----------------------------------------------------------------------
-    # Edges – Logging (dotted, short)
+    # Edges – Logging (dotted, short – logging cluster is near firewall)
     # -----------------------------------------------------------------------
     fw_a >> Edge(style="dotted", label="ALERT") >> cw_alert
     fw_b >> Edge(style="dotted", label="ALERT") >> cw_alert
     fw_a >> Edge(style="dotted", label="FLOW") >> s3_archive
     fw_b >> Edge(style="dotted", label="FLOW") >> s3_archive
 
-    # VPC Flow Logs
+    # VPC Flow Logs (within logging cluster, short edge)
     vpc_flow >> Edge(style="dotted", label="flow") >> cw_alert
 
     # CloudWatch monitoring chain
     cw_alert >> Edge(label="metrics") >> cw_dash
     cw_alert >> Edge(label="filter") >> cw_alarm
-
-    # -----------------------------------------------------------------------
-    # Edges – SSM management (dashed)
-    # -----------------------------------------------------------------------
-    prod_ssm >> Edge(style="dashed", label="SSM") >> ssm_mgmt
-    dev_ssm >> Edge(style="dashed") >> ssm_mgmt
-    shared_ssm >> Edge(style="dashed") >> ssm_mgmt
-    prod_ec2 >> Edge(style="dotted") >> prod_ssm
-    dev_ec2 >> Edge(style="dotted") >> dev_ssm
-    shared_ec2 >> Edge(style="dotted") >> shared_ssm
 
 
 def main() -> None:
