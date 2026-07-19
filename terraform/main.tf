@@ -132,16 +132,15 @@ module "transit_gateway" {
 module "firewall_policy" {
   source = "./modules/firewall-policy"
 
-  name                       = "${local.name_prefix}-firewall-policy"
-  description                = "Centralized AWS Network Firewall policy for ${var.environment}"
-  tags                       = local.merged_tags
-  stateful_rule_order        = var.stateful_rule_order
-  rule_variables             = local.rule_variables
-  stateful_rule_groups       = local.stateful_rule_groups
-  allowed_domains            = local.allowed_domains
-  blocked_domains            = local.blocked_domains
-  domain_rule_group_capacity = var.domain_rule_group_capacity
-  blocked_destinations       = local.blocked_destinations
+  name                 = "${local.name_prefix}-firewall-policy"
+  description          = "Centralized AWS Network Firewall policy for ${var.environment}"
+  tags                 = local.merged_tags
+  stateful_rule_order  = var.stateful_rule_order
+  rule_variables       = local.rule_variables
+  stateful_rule_groups = local.stateful_rule_groups
+  allowed_domains      = local.allowed_domains
+  blocked_domains      = local.blocked_domains
+  blocked_destinations = local.blocked_destinations
 }
 
 # ----- 3b. Logging (CloudWatch + S3 archival) -----

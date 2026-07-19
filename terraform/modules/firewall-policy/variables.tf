@@ -110,11 +110,6 @@ variable "blocked_domains" {
   default     = []
 }
 
-variable "domain_rule_group_capacity" {
-  description = "Capacity for the allowed/blocked domain-list rule groups."
-  type        = number
-  default     = 100
-}
 
 variable "blocked_destinations" {
   description = "Destination CIDRs to drop with a stateless rule group (documentation-only TEST-NET ranges)."

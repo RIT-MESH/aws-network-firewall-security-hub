@@ -138,16 +138,6 @@ variable "stateful_rule_group_capacity" {
   }
 }
 
-variable "domain_rule_group_capacity" {
-  description = "Capacity for the allowed/blocked domain-list rule groups."
-  type        = number
-  default     = 100
-
-  validation {
-    condition     = var.domain_rule_group_capacity > 0 && var.domain_rule_group_capacity <= 100000
-    error_message = "domain_rule_group_capacity must be between 1 and 100000."
-  }
-}
 
 variable "firewall_delete_protection" {
   description = "Prevent the firewall from being deleted. Enforced true when environment is production via a check block."
