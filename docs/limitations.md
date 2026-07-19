@@ -51,40 +51,54 @@ rejects a bare `aws:drop` stateless default so the defect cannot recur. The
 earlier AZ-index-keyed endpoint mapping hardening remains in place (it was a
 real fragility, just not the root cause).
 
-## Stateful rule defects (post-fix runtime finding)
+## Stateful rule defects (post-fix runtime finding) — FIXED
 
 After the stateless-default fix (`aws:forward_to_sfe`), the stateful engine
-receives traffic, but runtime validation found two separate stateful-rule
-defects that prevent the intended allow/DNS policy from working:
+received traffic but dropped all of it (`PassedPackets = 0`). Two stateful-rule
+defects were found and fixed (commit af56b8b, applied):
 
-1. **Approved-DNS pass rules are shadowed by the unauthorized-DNS deny rules.**
-   The deny rules use `$LAB_EXTERNAL_NET = 0.0.0.0/0` for destination port 53,
-   which includes the shared-services CIDR (`$LAB_SHARED_NET`). In STRICT_ORDER
-   the deny rules (priority 100) evaluate before the DNS pass rules
-   (priority 300), so workload DNS to the approved shared-services resolver
-   (10.3.0.0/16:53) is dropped by `sid 10000023` / `sid 10000025` instead of
-   passed by `sid 10000040` / `sid 10000041`. Confirmed in the ALERT log.
-   Fix direction: exclude the shared-services CIDR from the unauthorized-DNS
-   deny rules (e.g. a negated destination set or a higher-priority DNS pass),
-   or raise the DNS pass priority above the deny priority.
+1. **Approved-DNS pass rules shadowed by unauthorized-DNS deny rules (FIXED).**
+   The deny rules used `$LAB_EXTERNAL_NET = 0.0.0.0/0` for destination port 53,
+   which includes the shared-services CIDR. In STRICT_ORDER the deny rules
+   (priority 100) evaluated before the DNS pass rules (priority 300), so
+   workload DNS to the approved resolver was dropped by `sid 10000023` /
+   `sid 10000025`. Fixed by raising the DNS pass rule-group priority to 90
+   (above the deny priority 100). Approved DNS UDP now passes
+   (`sid 10000040`); unauthorized external DNS is still dropped
+   (`sid 10000023` / `sid 10000025`).
 
-2. **TLS SNI domain-list rules (allowed-domains ALLOWLIST and blocked-domains
-   DENYLIST) do not pass/drop as intended under the `drop_strict` stateful
-   default.** Allowed HTTPS to `example.com` (in the ALLOWLIST) is dropped by
-   the stateful default (`PassedPackets = 0`), and restricted-domain HTTPS to
-   `restricted.example.org` (in the DENYLIST) is dropped by the default rather
-   than by the DENYLIST rule (no DENYLIST ALERT event). The TLS SNI rules appear
-   not to evaluate before the default drop applied to the TCP handshake. Fix
-   direction: review the stateful engine stream-exception policy and the
-   domain-list rule group configuration under STRICT_ORDER with `drop_strict`,
-   or add explicit stateful pass rules for the TLS handshake to the allowed
-   domains.
+2. **TLS SNI domain-list rules could not evaluate under `drop_strict` (FIXED).**
+   With `stateful_default_actions = ["aws:drop_strict"]` and the default stream
+   exception policy, the stateful engine dropped the TCP SYN before the TLS
+   ClientHello (SNI) arrived, so the allowed-domains ALLOWLIST and blocked-
+   domains DENYLIST never evaluated. Fixed by setting
+   `stream_exception_policy = "CONTINUE"` so the engine passes the TCP
+   handshake until it can inspect the SNI. The stateful engine now passes
+   traffic (`PassedPackets` 0 -> 13); the `drop_strict` default still denies
+   unmatched traffic.
 
-These are stateful-rule/design defects, not routing defects, and are outside the
-stateless-default fix scope. Until they are corrected, allowed HTTPS egress and
-approved DNS cannot be validated as PASS, so the project remains "Deployed,
-runtime validation incomplete."
+## Return-path routing defect (runtime finding) — OPEN
 
+After the stateful fixes, allowed HTTPS and approved-DNS-TCP flows still time
+out even though the firewall passes the forward direction (`PassedPackets > 0`).
+Confirmed root cause: the inspection VPC **public subnet route tables** contain
+only `10.0.0.0/16 -> local` and `0.0.0.0/0 -> IGW` and no spoke-CIDR routes.
+When the NAT gateway DNATs a return packet to a spoke private IP (e.g.
+`10.2.x.x`), the public subnet route table sends it via `0.0.0.0/0 -> IGW`, and
+the IGW drops it (private destination). So the return path for allowed internet
+flows is broken: the SYN passes, but the SYN-ACK never returns, the ClientHello
+is never sent, and the TLS SNI domain rules cannot evaluate. This also blocks
+approved-DNS-TCP (the RST return does not reach the client) and prevents
+restricted-domain blocking from being identified by the DENYLIST.
+
+Fix direction: add `spoke CIDRs -> same-AZ firewall endpoint` routes to the
+inspection public subnet route tables so the NAT return goes back through the
+firewall (stateful inspection) -> firewall subnet (`spoke -> TGW`) -> TGW ->
+spoke. This is a route-resource addition (`aws_route`), outside the firewall-
+policy/rule-group apply scope, and requires separate approval. Until it is
+fixed, allowed HTTPS, approved DNS TCP, restricted-domain blocking, and
+return-path symmetry cannot be validated as PASS, so the project remains
+"Deployed, runtime validation incomplete."
 ## SSM access (resolved)
 
 SSM access was initially blocked by the egress allowlist (no SSM VPC endpoints).
