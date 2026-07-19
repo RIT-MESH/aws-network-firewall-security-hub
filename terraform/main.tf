@@ -244,6 +244,11 @@ module "test_workloads" {
   tags          = local.merged_tags
   enabled       = var.enable_test_workloads
   instance_type = var.test_instance_type
+  vpc_cidrs = {
+    production      = var.production_vpc_cidr
+    development     = var.development_vpc_cidr
+    shared_services = var.shared_services_vpc_cidr
+  }
 
   instances = {
     production = {

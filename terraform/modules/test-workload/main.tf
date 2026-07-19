@@ -61,7 +61,39 @@ resource "aws_security_group" "test" {
   name   = "${var.name_prefix}-test-${each.value.name}"
   vpc_id = each.value.vpc_id
 
-  # No ingress: administration is via SSM Session Manager, not public SSH/RDP.
+  # No public ingress. Scoped inbound for firewall policy validation only:
+  # - TCP/53 + UDP/53 from workload VPC CIDRs: approved DNS to shared resolver
+  # - TCP/8080 from dev CIDR: unmatched cross-VPC test (firewall drop_established)
+  dynamic "ingress" {
+    for_each = each.key == "shared_services" ? [1] : []
+    content {
+      description = "Allow approved DNS TCP from workloads for validation"
+      from_port   = 53
+      to_port     = 53
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidrs.production, var.vpc_cidrs.development]
+    }
+  }
+  dynamic "ingress" {
+    for_each = each.key == "shared_services" ? [1] : []
+    content {
+      description = "Allow approved DNS UDP from workloads for validation"
+      from_port   = 53
+      to_port     = 53
+      protocol    = "udp"
+      cidr_blocks = [var.vpc_cidrs.production, var.vpc_cidrs.development]
+    }
+  }
+  dynamic "ingress" {
+    for_each = each.key == "shared_services" ? [1] : []
+    content {
+      description = "Allow unmatched cross-VPC test from dev for validation"
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidrs.development]
+    }
+  }
   egress {
     description = "Outbound for SSM and test traffic"
     from_port   = 0

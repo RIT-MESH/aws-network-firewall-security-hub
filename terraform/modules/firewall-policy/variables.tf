@@ -73,9 +73,9 @@ variable "stateless_fragment_default_actions" {
 }
 
 variable "stateful_default_actions" {
-  description = "Default action for stateful traffic that matches no stateful rule. Must be a strict action when stateful_rule_order is STRICT_ORDER."
+  description = "Default action for stateful traffic that matches no stateful rule. drop_established allows the TCP handshake to complete so TLS SNI domain-list rules can evaluate, then drops unmatched established flows; drop_strict would drop the SYN before the SNI is seen."
   type        = list(string)
-  default     = ["aws:drop_strict"]
+  default     = ["aws:drop_established"]
 }
 
 variable "rule_variables" {

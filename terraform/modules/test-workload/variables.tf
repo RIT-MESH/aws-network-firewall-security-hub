@@ -22,6 +22,11 @@ variable "enabled" {
   default     = false
 }
 
+variable "vpc_cidrs" {
+  description = "Map of VPC role -> CIDR for scoped security-group ingress rules."
+  type        = map(string)
+  default     = {}
+}
 variable "instances" {
   description = <<EOT
 Map of test instances. Each entry:
