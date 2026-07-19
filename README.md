@@ -446,7 +446,6 @@ The fix replaces domain-list rule groups with native Suricata `tls.sni` rules th
 4. For blocked domains, drop drops the entire flow.
 5. For unmatched domains, no pass verdict is set, so the catch-all drop tcp `from_server`,established rule drops the server response.
 
-
 ## Logging and Monitoring
 
 ### CloudWatch

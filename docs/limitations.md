@@ -3,7 +3,6 @@
 "> **Current status (2026-07-19): All 20 runtime tests PASS.** The architecture uses native Suricata "+bt+"tls.sni"+bt+" rules with "+bt+"alert_strict"+bt+" as the stateful default, replacing AWS Network Firewall domain-list rule groups. The defects documented below are historical records of issues found and resolved during development. See the Runtime Validation Matrix in the README for current test results."
 ""
 
-
 ## Static validation
 
 Static tests prove configuration intent, not runtime behavior. Packet-level
