@@ -39,6 +39,17 @@ variable "stateful_rule_order" {
   }
 }
 
+variable "stream_exception_policy" {
+  description = "Stream exception policy for the stateful engine. CONTINUE lets the engine pass the TCP handshake until it can inspect application-layer data (e.g. TLS SNI for domain-list rules) before applying the stateful default; this is required for TLS_SNI/HTTP_HOST domain-list rules to evaluate under a drop_strict stateful default. DROP would drop unclassified packets (e.g. the SYN before the SNI) and prevent domain-list inspection. The stateful default (drop_strict) still denies unmatched traffic."
+  type        = string
+  default     = "CONTINUE"
+
+  validation {
+    condition     = contains(["DROP", "CONTINUE"], var.stream_exception_policy)
+    error_message = "stream_exception_policy must be DROP or CONTINUE."
+  }
+}
+
 variable "stateless_default_actions" {
   description = "Default action for stateless traffic that matches no stateless rule. Must forward to the stateful engine (aws:forward_to_sfe) so the configured stateful allow/deny/alert/DNS/domain-list policies can evaluate traffic; a stateless aws:drop default would drop all traffic before stateful evaluation and silently bypass the entire stateful policy."
   type        = list(string)

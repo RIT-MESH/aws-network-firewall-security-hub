@@ -109,3 +109,35 @@ def test_no_aws_drop_as_stateless_default_anywhere():
 
 # Route-classification regression tests remain in tests/scripts/test_classify_route.py
 # and are executed by the same pytest run.
+
+def test_dns_pass_priority_is_above_deny():
+    """Approved-DNS pass rules must evaluate before the unauthorized-DNS deny
+    rules, otherwise the deny rules (dest 0.0.0.0/0:53) shadow the approved-DNS
+    pass rules (dest shared:53) because 0.0.0.0/0 includes the shared CIDR."""
+    text = _read(FP_MAIN)
+    m = re.search(r'stateful_priorities\s*=\s*\{(.*?)\}', text, re.DOTALL)
+    assert m, "stateful_priorities map not found"
+    blk = m.group(1)
+    dns = int(re.search(r'dns\s*=\s*(\d+)', blk).group(1))
+    deny = int(re.search(r'deny\s*=\s*(\d+)', blk).group(1))
+    assert dns < deny, (
+        f"DNS pass priority ({dns}) must be lower than deny priority ({deny}) so "
+        "approved DNS to the shared resolver passes before the unauthorized-DNS deny"
+    )
+
+
+def test_stream_exception_policy_defaults_to_continue():
+    """The stateful engine must continue the TCP handshake until it can inspect
+    the TLS SNI; otherwise drop_strict drops the SYN before the domain-list
+    rules can evaluate (allowed HTTPS fails, restricted domains dropped by
+    default instead of the DENYLIST)."""
+    blk = _var_block(_read(FP_VARS), "stream_exception_policy")
+    assert "CONTINUE" in blk, "stream_exception_policy must default to CONTINUE"
+    assert "DROP" in blk and "CONTINUE" in blk  # validation allows both
+
+
+def test_stateful_engine_options_set_stream_exception_policy():
+    text = _read(FP_MAIN)
+    assert re.search(r'stream_exception_policy\s*=\s*var\.stream_exception_policy', text), (
+        "stateful_engine_options must set stream_exception_policy"
+    )

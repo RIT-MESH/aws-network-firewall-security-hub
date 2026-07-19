@@ -8,13 +8,13 @@ locals {
   #   60 allowed-domains (ALLOWLIST)       - enforce egress allowlist for HTTP/HTTPS
   #  100 deny (5-tuple drops)
   #  200 alert (alert-only suspicious traffic)
-  #  300 dns (allow DNS to approved resolver)
+  #   90 dns (allow DNS to approved resolver; above deny so approved DNS to shared passes first)
   #  400 allow (mgmt SSH, prod->shared logging)
   stateful_priorities = {
     allow = 400
     deny  = 100
     alert = 200
-    dns   = 300
+    dns   = 90
   }
 
   blocked_domains_priority = 50
@@ -182,7 +182,8 @@ resource "aws_networkfirewall_firewall_policy" "this" {
     stateful_default_actions           = var.stateful_default_actions
 
     stateful_engine_options {
-      rule_order = var.stateful_rule_order
+      rule_order              = var.stateful_rule_order
+      stream_exception_policy = var.stream_exception_policy
     }
 
     # 5-tuple stateful groups (allow/deny/alert/dns)
