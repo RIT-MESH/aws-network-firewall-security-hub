@@ -30,6 +30,7 @@ python a`architecture/diagrams/generate_architecture.py`
 Graphviz (dot) must be installed and available in PATH. The GitHub Actions
 workflow rchitecture-diagram.yml verifies that committed artifacts are up to
 date on every pull request and push to main.
+
 ## Components
 
 - **Inspection VPC**: AWS Network Firewall (2 AZs), NAT Gateways (2 AZs),
