@@ -46,172 +46,165 @@ from diagrams.aws.storage import S3
 # ---------------------------------------------------------------------------
 # Output configuration
 # ---------------------------------------------------------------------------
-# Resolve the output directory relative to this file so the script works
-# regardless of the current working directory.
 SCRIPT_DIR = Path(__file__).resolve().parent
 OUTPUT_NAME = "aws-network-firewall-architecture"
-SHOW = False  # Do not open the rendered image automatically
+SHOW = False
+
+# Graphviz attributes tuned for a wide, readable landscape layout.
+# ratio=compress + size constrains the canvas to a landscape aspect ratio.
+GRAPH_ATTR = {
+    "rankdir": "LR",
+    "ranksep": "1.2",
+    "nodesep": "0.4",
+    "splines": "spline",
+    "fontname": "Helvetica",
+    "fontsize": "14",
+    "pad": "0.3",
+    "ratio": "compress",
+    "size": "24,14!",
+}
+NODE_ATTR = {
+    "fontname": "Helvetica",
+    "fontsize": "12",
+}
+EDGE_ATTR = {
+    "fontname": "Helvetica",
+    "fontsize": "11",
+}
 
 
 def _build_diagram() -> None:
     """Build the architecture diagram content (nodes and edges).
 
-    This function is called once per output format so that the architecture
-    definition is not duplicated between PNG and SVG generation.
+    Layout strategy -- three horizontal sections, left to right:
+    Left   – workload VPCs (compact, 2 nodes each)
+    Center – Transit Gateway + Inspection VPC with per-AZ firewall/NAT
+    Right  – Internet Gateway + Internet
+    A compact Logging & Monitoring cluster is placed alongside the firewall.
     """
-    # ---- Internet --------------------------------------------------------
+
+    # ---- Internet (rightmost) -------------------------------------------
     internet = InternetAlt1("Internet")
 
-    # ---- AWS Region cluster ---------------------------------------------
+    # ---- AWS Region ------------------------------------------------------
     with Cluster("AWS Region"):
 
         # ================================================================
-        # Inspection VPC -- IGW is VPC-level (not per-AZ)
+        # LEFT: Workload VPCs (compact — 2 nodes per VPC)
+        # ================================================================
+
+        # --- Production VPC ---
+        with Cluster("Production VPC\n(private app + TGW subnets, 2 AZs)"):
+            prod_ec2 = EC2("Optional\nTest Workload")
+            prod_ssm = Endpoint(
+                "SSM PrivateLink\nssm / ssmmessages\n/ ec2messages"
+            )
+
+        # --- Development VPC ---
+        with Cluster("Development VPC\n(private app + TGW subnets, 2 AZs)"):
+            dev_ec2 = EC2("Optional\nTest Workload")
+            dev_ssm = Endpoint(
+                "SSM PrivateLink\nssm / ssmmessages\n/ ec2messages"
+            )
+
+        # --- Shared Services VPC ---
+        with Cluster("Shared Services VPC\n(shared + TGW subnets, 2 AZs)"):
+            shared_ec2 = EC2("Optional\nTest Workload")
+            shared_ssm = Endpoint(
+                "SSM PrivateLink\nssm / ssmmessages\n/ ec2messages"
+            )
+
+        # ================================================================
+        # CENTER: Transit Gateway
+        # ================================================================
+        tgw = TGW("Transit\nGateway")
+        tgw_attach_prod = TGWAttach("Prod\nattach")
+        tgw_attach_dev = TGWAttach("Dev\nattach")
+        tgw_attach_shared = TGWAttach("Shared\nattach")
+        tgw_attach_insp = TGWAttach("Insp\nattach")
+
+        # ================================================================
+        # CENTER-RIGHT: Inspection VPC
         # ================================================================
         with Cluster("Inspection VPC"):
-            igw = IGW("Internet Gateway")
+            igw = IGW("Internet\nGateway")
 
-            # --- AZ-a ----------------------------------------------------
             with Cluster("AZ-a"):
-                fw_a = NetworkFirewall("NFW Endpoint")
-                nat_a = NATGateway("NAT Gateway")
-                pub_a = PublicSubnet("Public subnet")
-                tgw_insp_a = PrivateSubnet("TGW subnet")
+                fw_a = NetworkFirewall("NFW\nEndpoint")
+                nat_a = NATGateway("NAT\nGateway")
+                pub_a = PublicSubnet("Public\nsubnet")
 
-            # --- AZ-b ----------------------------------------------------
             with Cluster("AZ-b"):
-                fw_b = NetworkFirewall("NFW Endpoint")
-                nat_b = NATGateway("NAT Gateway")
-                pub_b = PublicSubnet("Public subnet")
-                tgw_insp_b = PrivateSubnet("TGW subnet")
+                fw_b = NetworkFirewall("NFW\nEndpoint")
+                nat_b = NATGateway("NAT\nGateway")
+                pub_b = PublicSubnet("Public\nsubnet")
 
-            # Firewall policy + rule groups (VPC-level, not an AWS WAF).
-            # GenericFirewall avoids misrepresenting AWS WAF which is not
-            # deployed by this Terraform configuration.
             fw_policy = GenericFirewall(
                 "Firewall Policy\n+ Stateful/Stateless\nRule Groups"
             )
 
         # ================================================================
-        # Transit Gateway (central hub)
-        # ================================================================
-        tgw = TGW("Transit Gateway")
-        tgw_attach_insp = TGWAttach("Inspection\nattachment")
-        tgw_attach_prod = TGWAttach("Production\nattachment")
-        tgw_attach_dev = TGWAttach("Development\nattachment")
-        tgw_attach_shared = TGWAttach("Shared Svcs\nattachment")
-
-        # ================================================================
-        # Production VPC
-        # ================================================================
-        with Cluster("Production VPC"):
-            with Cluster("AZ-a"):
-                prod_app_a = PrivateSubnet("App subnet")
-                prod_tgw_a = PrivateSubnet("TGW subnet")
-            with Cluster("AZ-b"):
-                prod_app_b = PrivateSubnet("App subnet")
-                prod_tgw_b = PrivateSubnet("TGW subnet")
-            prod_ec2 = EC2("Optional\nTest Workload")
-            prod_ssm = Endpoint(
-                "SSM PrivateLink\nssm / ssmmessages / ec2messages"
-            )
-
-        # ================================================================
-        # Development VPC
-        # ================================================================
-        with Cluster("Development VPC"):
-            with Cluster("AZ-a"):
-                dev_app_a = PrivateSubnet("App subnet")
-                dev_tgw_a = PrivateSubnet("TGW subnet")
-            with Cluster("AZ-b"):
-                dev_app_b = PrivateSubnet("App subnet")
-                dev_tgw_b = PrivateSubnet("TGW subnet")
-            dev_ec2 = EC2("Optional\nTest Workload")
-            dev_ssm = Endpoint(
-                "SSM PrivateLink\nssm / ssmmessages / ec2messages"
-            )
-
-        # ================================================================
-        # Shared Services VPC
-        # ================================================================
-        with Cluster("Shared Services VPC"):
-            with Cluster("AZ-a"):
-                shared_app_a = PrivateSubnet("Shared subnet")
-                shared_tgw_a = PrivateSubnet("TGW subnet")
-            with Cluster("AZ-b"):
-                shared_app_b = PrivateSubnet("Shared subnet")
-                shared_tgw_b = PrivateSubnet("TGW subnet")
-            shared_ec2 = EC2("Optional\nTest Workload")
-            shared_ssm = Endpoint(
-                "SSM PrivateLink\nssm / ssmmessages / ec2messages"
-            )
-
-        # ================================================================
-        # Logging & Monitoring
+        # Logging & Monitoring (compact, alongside firewall)
         # ================================================================
         with Cluster("Logging & Monitoring"):
-            cw_alert_logs = CloudwatchLogs("CloudWatch\nALERT logs")
-            cw_vpc_flow = CloudwatchLogs("CloudWatch\nVPC Flow Logs")
-            cw_dashboard = Cloudwatch("CloudWatch\nDashboard")
+            cw_alert = CloudwatchLogs("CW\nALERT logs")
+            s3_archive = S3("NFW FLOW\nLog Archive")
+            cw_dash = Cloudwatch("CW\nDashboard")
             cw_alarm = CloudwatchAlarm("Metric\nAlarms")
-            s3_archive = S3("AWS Network Firewall\nLog Archive")
             ssm_mgmt = SystemsManager("SSM\nManagement")
             vpc_flow = VPCFlowLogs("VPC\nFlow Logs")
 
     # -----------------------------------------------------------------------
-    # Edges -- Egress traffic flow (workload -> internet)
+    # Edges – Primary egress flow (left to right)
     # -----------------------------------------------------------------------
-    # Production egress
-    prod_ec2 >> Edge(label="0.0.0.0/0") >> tgw
-    # Development egress
-    dev_ec2 >> Edge(label="0.0.0.0/0") >> tgw
-    # Shared Services egress
-    shared_ec2 >> Edge(label="0.0.0.0/0") >> tgw
+    prod_ec2 >> Edge(label="default route") >> tgw
+    dev_ec2 >> Edge(label="default route") >> tgw
+    shared_ec2 >> Edge(label="default route") >> tgw
 
-    # TGW -> Inspection VPC (firewall)
+    # TGW -> Inspection (all traffic to firewall)
     tgw >> Edge(label="to inspection") >> tgw_attach_insp
-    tgw_attach_insp >> Edge(label="-> NFW") >> fw_a
-    tgw_attach_insp >> Edge(label="-> NFW") >> fw_b
+    tgw_attach_insp >> Edge(label="per-AZ\nfirewall") >> fw_a
+    tgw_attach_insp >> Edge(label="per-AZ\nfirewall") >> fw_b
 
     # Firewall -> NAT -> IGW -> Internet
-    fw_a >> Edge(label="allowed") >> nat_a
-    fw_b >> Edge(label="allowed") >> nat_b
+    fw_a >> Edge(label="per-AZ\nNAT") >> nat_a
+    fw_b >> Edge(label="per-AZ\nNAT") >> nat_b
     nat_a >> Edge() >> pub_a
     nat_b >> Edge() >> pub_b
-    pub_a >> Edge(label="0.0.0.0/0") >> igw
-    pub_b >> Edge(label="0.0.0.0/0") >> igw
-    igw >> Edge() >> internet
+    pub_a >> Edge() >> igw
+    pub_b >> Edge() >> igw
+    igw >> Edge(label="egress") >> internet
 
     # -----------------------------------------------------------------------
-    # Edges -- Cross-VPC traffic through centralized inspection
+    # Edges – TGW attachments (dashed for cross-VPC)
     # -----------------------------------------------------------------------
     tgw >> Edge(style="dashed", label="cross-VPC") >> tgw_attach_prod
     tgw >> Edge(style="dashed") >> tgw_attach_dev
     tgw >> Edge(style="dashed") >> tgw_attach_shared
 
     # -----------------------------------------------------------------------
-    # Edges -- Firewall policy
+    # Edges – Firewall policy (dotted)
     # -----------------------------------------------------------------------
     fw_policy >> Edge(style="dotted", label="policy") >> fw_a
     fw_policy >> Edge(style="dotted") >> fw_b
 
     # -----------------------------------------------------------------------
-    # Edges -- NFW logging (ALERT -> CloudWatch, FLOW -> S3)
+    # Edges – Logging (dotted, short)
     # -----------------------------------------------------------------------
-    fw_a >> Edge(style="dotted", label="ALERT") >> cw_alert_logs
-    fw_b >> Edge(style="dotted", label="ALERT") >> cw_alert_logs
+    fw_a >> Edge(style="dotted", label="ALERT") >> cw_alert
+    fw_b >> Edge(style="dotted", label="ALERT") >> cw_alert
     fw_a >> Edge(style="dotted", label="FLOW") >> s3_archive
     fw_b >> Edge(style="dotted", label="FLOW") >> s3_archive
 
-    # VPC Flow Logs -> CloudWatch (separate from NFW logs)
-    vpc_flow >> Edge(style="dotted", label="flow") >> cw_vpc_flow
+    # VPC Flow Logs
+    vpc_flow >> Edge(style="dotted", label="flow") >> cw_alert
 
     # CloudWatch monitoring chain
-    cw_alert_logs >> Edge(label="metrics") >> cw_dashboard
-    cw_alert_logs >> Edge(label="filter") >> cw_alarm
+    cw_alert >> Edge(label="metrics") >> cw_dash
+    cw_alert >> Edge(label="filter") >> cw_alarm
 
     # -----------------------------------------------------------------------
-    # Edges -- SSM management via PrivateLink
+    # Edges – SSM management (dashed)
     # -----------------------------------------------------------------------
     prod_ssm >> Edge(style="dashed", label="SSM") >> ssm_mgmt
     dev_ssm >> Edge(style="dashed") >> ssm_mgmt
@@ -224,8 +217,6 @@ def _build_diagram() -> None:
 def main() -> None:
     """Generate both PNG and SVG architecture diagrams."""
 
-    # The diagrams library uses the `dot` binary from Graphviz.
-    # Verify it is available before attempting to render.
     if not shutil.which("dot"):
         raise SystemExit(
             "Error: Graphviz 'dot' binary not found in PATH.\n"
@@ -233,15 +224,15 @@ def main() -> None:
             "'dot' is available before running this script."
         )
 
-    # Generate both formats.  The diagrams library accepts a list for
-    # `outformat` so both PNG and SVG are produced in a single invocation.
     with Diagram(
         "AWS Network Firewall Security Hub",
         filename=str(SCRIPT_DIR / OUTPUT_NAME),
         outformat=["png", "svg"],
         show=SHOW,
         direction="LR",
-        graph_attr={"ranksep": "2.0", "nodesep": "1.0", "splines": "ortho"},
+        graph_attr=GRAPH_ATTR,
+        node_attr=NODE_ATTR,
+        edge_attr=EDGE_ATTR,
     ):
         _build_diagram()
 
