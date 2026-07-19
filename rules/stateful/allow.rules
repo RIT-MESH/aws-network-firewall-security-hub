@@ -5,3 +5,4 @@
 
 pass tcp $LAB_SHARED_NET any -> $LAB_PROD_NET 22 (msg: "LAB allow shared-services management to production SSH"; flow: to_server; sid: 10000010; rev: 1;)
 pass tcp $LAB_PROD_NET any -> $LAB_SHARED_NET 514 (msg: "LAB allow production to shared services logging"; flow: to_server; sid: 10000011; rev: 1;)
+pass tcp $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 80,443 (msg: "LAB allow HTTP/HTTPS SYN for domain-list inspection"; flow:to_server; sid: 10000012; rev: 1;)

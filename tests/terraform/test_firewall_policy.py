@@ -58,7 +58,7 @@ def test_stateless_defaults_have_forward_to_sfe_validation():
 
 def test_stateful_default_remains_drop_strict():
     blk = _var_block(_read(FP_VARS), "stateful_default_actions")
-    assert "aws:drop_established" in blk, "stateful default must be drop_established (allows handshake for SNI inspection)"
+    assert "aws:drop_established" in blk, "stateful default must be drop_established"
 
 
 def test_stateful_rule_order_strict():
