@@ -91,7 +91,6 @@ Graphviz (the dot command) must be installed and available in PATH.
 flow diagrams showing allow/block/alert decisions, cross-VPC inspection, DNS
 processing, and symmetric return routing.
 
-
 ## Traffic Flow Explanation
 
 **Egress (workload to internet):**
