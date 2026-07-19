@@ -18,7 +18,10 @@ Graphviz (the `dot` binary) must be installed and available in `PATH`.
 """
 from __future__ import annotations
 
+import base64
+import re
 import shutil
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from diagrams import Cluster, Diagram, Edge
@@ -50,6 +53,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 OUTPUT_NAME = "aws-network-firewall-architecture"
 SHOW = False
 
+XLINK_NS = "http://www.w3.org/1999/xlink"
+SVG_NS = "http://www.w3.org/2000/svg"
+ET.register_namespace("", SVG_NS)
+ET.register_namespace("xlink", XLINK_NS)
+
 # Graphviz attributes tuned for a wide, readable landscape layout.
 # ratio=compress + size constrains the canvas to a landscape aspect ratio.
 GRAPH_ATTR = {
@@ -71,6 +79,75 @@ EDGE_ATTR = {
     "fontname": "Helvetica",
     "fontsize": "11",
 }
+
+
+def _embed_icons_in_svg(svg_path):
+    """Replace local icon references with embedded base64 data URIs."""
+    tree = ET.parse(str(svg_path))
+    root = tree.getroot()
+    cache = {}
+    num_refs = 0
+    num_embedded = 0
+
+    for img in root.iter("{%s}image" % SVG_NS):
+        num_refs += 1
+        href = img.get("{%s}href" % XLINK_NS) or img.get("href") or ""
+        if not href:
+            continue
+        if href.startswith("data:"):
+            num_embedded += 1
+            continue
+
+        local_path = href.replace("file://", "")
+        fp = Path(local_path)
+        if str(fp) not in cache:
+            if not fp.exists():
+                continue
+            data = fp.read_bytes()
+            b64 = base64.b64encode(data).decode("ascii")
+            cache[str(fp)] = "data:image/png;base64," + b64
+
+        data_uri = cache[str(fp)]
+        if img.get("{%s}href" % XLINK_NS) is not None:
+            img.set("{%s}href" % XLINK_NS, data_uri)
+        if img.get("href") is not None:
+            img.set("href", data_uri)
+        num_embedded += 1
+
+    tree.write(str(svg_path), encoding="unicode", xml_declaration=True)
+    return num_refs, num_embedded
+
+
+def _validate_svg_portability(svg_path):
+    """Fail if the SVG contains any non-portable image references."""
+    text = svg_path.read_text(encoding="utf-8")
+    forbidden = [
+        ("site-packages", "Python site-packages reference"),
+        ("file://", "file:// URI"),
+        ("/home/", "Linux home directory path"),
+        ("/Users/", "macOS Users directory path"),
+    ]
+    errors = []
+    for pattern, desc in forbidden:
+        if pattern in text:
+            errors.append("SVG contains %s" % desc)
+
+    # Check for Windows drive letter paths like C:\
+    if re.search(r"[A-Za-z]:\\", text):
+        errors.append("SVG contains Windows absolute path")
+
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise SystemExit("SVG is not valid XML: %s" % exc)
+
+    for img in root.iter("{%s}image" % SVG_NS):
+        href = img.get("{%s}href" % XLINK_NS) or img.get("href") or ""
+        if not href.startswith("data:image/"):
+            errors.append("Image href does not start with data:image/")
+
+    if errors:
+        raise SystemExit("SVG portability validation failed:\n  - " + "\n  - ".join(errors))
 
 
 def _build_diagram() -> None:
@@ -244,6 +321,23 @@ def main() -> None:
             print(f"Generated {fmt}: {path} ({path.stat().st_size} bytes)")
         else:
             raise SystemExit(f"Error: {fmt} output was not generated at {path}")
+
+    # Post-process SVG: embed local icons as base64 data URIs.
+    num_refs, num_embedded = _embed_icons_in_svg(svg_path)
+    print(f"SVG icon embedding: {num_refs} image references, "
+          f"{num_embedded} embedded as base64 data URIs")
+
+    # Validate SVG portability.
+    _validate_svg_portability(svg_path)
+    print("SVG portability validation: PASS (no local paths, all data URIs)")
+
+    # Re-validate XML after post-processing.
+    ET.parse(str(svg_path))
+    print("SVG XML validation: PASS")
+
+    # Report final file sizes (SVG may have grown from embedded icons).
+    for path2, fmt2 in [(png_path, "PNG"), (svg_path, "SVG")]:
+        print(f"Final {fmt2}: {path2} ({path2.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
