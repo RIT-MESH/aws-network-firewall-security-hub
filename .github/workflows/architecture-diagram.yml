@@ -1,0 +1,50 @@
+name: architecture-diagram
+
+on:
+  pull_request:
+    paths:
+      - "architecture/diagrams/**"
+      - "terraform/**"
+      - ".github/workflows/architecture-diagram.yml"
+  push:
+    branches: [main]
+    paths:
+      - "architecture/diagrams/**"
+      - "terraform/**"
+      - ".github/workflows/architecture-diagram.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install diagrams package
+        run: python -m pip install -r architecture/diagrams/requirements.txt
+
+      - name: Generate architecture diagram
+        run: python architecture/diagrams/generate_architecture.py
+
+      - name: Verify generated artifacts are up to date
+        run: |
+          if ! git diff --quiet -- architecture/diagrams/aws-network-firewall-architecture.png architecture/diagrams/aws-network-firewall-architecture.svg; then
+            echo "::error::Architecture diagram artifacts are outdated."
+            echo "::error::Run the following commands locally and commit the results:"
+            echo "::error::  python -m pip install -r architecture/diagrams/requirements.txt"
+            echo "::error::  python architecture/diagrams/generate_architecture.py"
+            echo ""
+            echo "Diff summary:"
+            git diff --stat -- architecture/diagrams/
+            exit 1
+          fi
+          echo "Architecture diagram artifacts are up to date."

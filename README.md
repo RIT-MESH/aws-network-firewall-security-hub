@@ -25,6 +25,11 @@ Organizations need a single, centralized inspection point for all east-west and 
 
 ## Architecture Diagram
 
+![AWS Network Firewall architecture](architecture/diagrams/aws-network-firewall-architecture.svg)
+
+<details>
+<summary>View Mermaid traffic-flow diagram</summary>
+
 ```mermaid
 flowchart TB
     Internet((Internet))
@@ -62,6 +67,23 @@ flowchart TB
     IGW --> Internet
     Internet -.->|"return via NAT, symmetric AZ"| NAT
 ```
+
+</details>
+
+### Regenerating the diagram
+
+The SVG and PNG are generated artifacts produced by the Python diagrams package
+(Mingrammer). The source of truth for the visual diagram is
+rchitecture/diagrams/generate_architecture.py; Terraform remains the
+infrastructure source of truth. Contributors must regenerate the diagram after
+relevant architecture changes.
+
+`ash
+python -m pip install -r architecture/diagrams/requirements.txt
+python architecture/diagrams/generate_architecture.py
+`
+
+Graphviz (the dot command) must be installed and available in PATH.
 
 ---
 
