@@ -77,7 +77,7 @@ defects were found and fixed (commit af56b8b, applied):
    traffic (`PassedPackets` 0 -> 13); the `drop_strict` default still denies
    unmatched traffic.
 
-## Return-path routing defect (runtime finding) — FIXED
+## Return-path routing defect (runtime finding) — routes fixed, symptom persists
 
 After the stateful fixes, allowed HTTPS and approved-DNS-TCP flows still time
 out even though the firewall passes the forward direction (`PassedPackets > 0`).
@@ -91,14 +91,22 @@ is never sent, and the TLS SNI domain rules cannot evaluate. This also blocks
 approved-DNS-TCP (the RST return does not reach the client) and prevents
 restricted-domain blocking from being identified by the DENYLIST.
 
-Fixed: the inspection-routing module now creates `spoke CIDRs -> same-AZ
-Network Firewall endpoint` routes in each inspection public subnet route table
-(`aws_route.public_to_firewall_spokes`, AZ-keyed like `tgw_to_firewall`). The
-NAT return to spoke private IPs now goes back through the firewall (stateful
-inspection) -> firewall subnet (`spoke -> TGW`) -> TGW -> spoke, restoring
-symmetric inspected return traffic. The public `0.0.0.0/0 -> IGW` default is
-unchanged. `scripts/test-routes.sh` validates the public spoke-CIDR return
-routes against live AWS state.
+Route fix applied and verified live (commit db28d2c): the inspection-routing
+module now creates `spoke CIDRs -> same-AZ Network Firewall endpoint` routes in
+each inspection public subnet route table (`aws_route.public_to_firewall_spokes`,
+AZ-keyed like `tgw_to_firewall`). The public `0.0.0.0/0 -> IGW` default is
+unchanged and `scripts/test-routes.sh` validates the new routes against live AWS
+state. However, allowed HTTPS, approved DNS TCP, restricted-domain blocking, and
+return-path symmetry STILL fail after the route fix: the TLS handshake for
+internet flows does not complete (the stateful engine passes the forward SYN but
+no ClientHello reaches the firewall, so no ALLOWLIST pass and no DENYLIST alert
+is produced). The remaining cause is under investigation — the leading
+hypothesis is that the stateful engine does not pass the return TCP handshake
+(SYN-ACK) for these flows under `stream_exception_policy = CONTINUE` combined
+with the `drop_strict` stateful default; destination reachability has not been
+ruled out. Confirming the exact failure requires VPC flow-log / packet-capture
+analysis. Until resolved, the project remains "Deployed, runtime validation
+incomplete."
 
 ## SSM access (resolved)
 
