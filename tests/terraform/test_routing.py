@@ -218,3 +218,78 @@ def test_vpc_module_only_adds_igw_default_route_for_public_subnets():
     # The public_internet route must be gated by purpose == "public", not by
     # map_public_ip, so subnets never map public IPs.
     assert re.search(r'for_each\s*=\s*\{[^}]*purpose\s*==\s*"public"[^}]*\}', text, re.DOTALL)
+
+# ----- Return-path: public subnet spoke-CIDR routes -> same-AZ NFW endpoint -----
+
+def test_public_to_firewall_spokes_resource_exists():
+    text = _read(ROUTING_TF)
+    assert _resource(text, "public_to_firewall_spokes"), (
+        "public_to_firewall_spokes route resource must exist for the return-path fix"
+    )
+
+
+def test_public_spoke_routes_use_setproduct_of_az_keys_and_spoke_cidrs():
+    text = _read(ROUTING_TF)
+    m = re.search(r'resource\s+"aws_route"\s+"public_to_firewall_spokes"\s*\{(.*?)\n\}', text, re.DOTALL)
+    assert m, "public_to_firewall_spokes block not found"
+    blk = m.group(1)
+    assert "setproduct(" in blk and "var.inspection_public_route_table_ids" in blk and "var.spoke_cidrs" in blk, (
+        "public spoke routes must be the cross product of public route-table AZ keys and spoke CIDRs"
+    )
+
+
+def test_public_spoke_route_targets_nfw_endpoint_keyed_by_same_az():
+    text = _read(ROUTING_TF)
+    m = re.search(r'resource\s+"aws_route"\s+"public_to_firewall_spokes"\s*\{(.*?)\n\}', text, re.DOTALL)
+    blk = m.group(1)
+    # route table and endpoint both keyed by each.value.az_key (same AZ)
+    assert re.search(r"route_table_id\s*=\s*var\.inspection_public_route_table_ids\[each\.value\.az_key\]", blk), (
+        "route_table_id must be looked up by each.value.az_key"
+    )
+    assert re.search(r"vpc_endpoint_id\s*=\s*var\.firewall_endpoint_ids_by_az\[each\.value\.az_key\]", blk), (
+        "vpc_endpoint_id must be the same-AZ firewall endpoint keyed by each.value.az_key"
+    )
+    assert "destination_cidr_block" in blk and "each.value.spoke_cidr" in blk
+
+
+def test_public_spoke_routes_have_no_positional_indexing():
+    text = _read(ROUTING_TF)
+    m = re.search(r'resource\s+"aws_route"\s+"public_to_firewall_spokes"\s*\{(.*?)\n\}', text, re.DOTALL)
+    blk = m.group(1)
+    assert "count.index" not in blk, "no positional count.index coupling in public spoke routes"
+    assert not re.search(r"firewall_endpoint_ids\b\[(?!_by_az)", blk), (
+        "no positional firewall_endpoint_ids list indexing; use the AZ-keyed map"
+    )
+
+
+def test_public_spoke_routes_do_not_target_igw_nat_or_tgw():
+    text = _read(ROUTING_TF)
+    m = re.search(r'resource\s+"aws_route"\s+"public_to_firewall_spokes"\s*\{(.*?)\n\}', text, re.DOTALL)
+    blk = m.group(1)
+    assert "gateway_id" not in blk, "public spoke return routes must not target an IGW"
+    assert "nat_gateway_id" not in blk, "public spoke return routes must not target a NAT Gateway"
+    assert "transit_gateway_id" not in blk, (
+        "public spoke return routes must not bypass inspection by targeting the TGW directly"
+    )
+
+
+def test_public_default_route_still_targets_igw():
+    text = _read(VPC_MAIN)
+    assert re.search(r'"aws_route"\s+"public_internet"', text)
+    assert re.search(r'gateway_id\s*=\s*aws_internet_gateway\.this\[0\]\.id', text)
+
+
+def test_expected_public_spoke_route_count_is_six():
+    """2 AZs x 3 spoke CIDRs = 6 public spoke return routes."""
+    locals_text = _read(LOCALS_TF)
+    spoke_cidrs = re.findall(r'(var\.\w+_vpc_cidr),', locals_text)
+    # three spoke CIDRs are referenced in spoke_cidrs (production/development/shared_services)
+    spoke = [c for c in spoke_cidrs if c in (
+        "var.production_vpc_cidr", "var.development_vpc_cidr", "var.shared_services_vpc_cidr")]
+    assert len(set(spoke)) == 3, f"expected 3 spoke CIDRs, got {set(spoke)}"
+    # 2 AZs (keys "0","1" in the public route table map in main.tf)
+    main = _read(MAIN_TF)
+    pubkeys = re.findall(r'"([01])"\s*=\s*module\.inspection_vpc\.route_table_ids\["public-[ab]"\]', main)
+    assert len(set(pubkeys)) == 2, f"expected 2 public route-table AZ keys, got {set(pubkeys)}"
+    # 2 x 3 = 6
+    assert len(set(pubkeys)) * len(set(spoke)) == 6

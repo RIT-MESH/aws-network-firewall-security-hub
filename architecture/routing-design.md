@@ -44,6 +44,7 @@ so they cannot bypass inspection.
 | fw-a / fw-b | per-AZ | 0.0.0.0/0 | per-AZ NAT Gateway | Internet egress after inspection |
 | fw-a / fw-b | per-AZ | spoke CIDRs (10.1.0.0/16, 10.2.0.0/16, 10.3.0.0/16) | Transit Gateway | Cross-VPC return after inspection |
 | public-a / public-b | per-AZ | 0.0.0.0/0 | Internet Gateway | NAT Gateway egress to internet |
+| public-a / public-b | per-AZ | spoke CIDRs (10.1.0.0/16, 10.2.0.0/16, 10.3.0.0/16) | per-AZ Network Firewall endpoint | Return path: NAT-translated return traffic to spoke private IPs goes back through the same-AZ firewall endpoint (not the IGW), restoring symmetric inspected return traffic |
 
 ## Packet paths
 
@@ -59,9 +60,11 @@ so they cannot bypass inspection.
 ### 2. Return path (Internet -> workload)
 
 1. Internet -> IGW -> NAT Gateway (state preserved per AZ).
-2. NAT Gateway -> firewall subnet -> firewall (stateful, established flow).
-3. Firewall subnet -> spoke CIDR route? No: return traffic destination is the
-   spoke. The firewall subnet has a more-specific spoke CIDR route -> TGW.
+2. NAT Gateway destination-translates the return to the originating spoke
+   private IP; the public subnet route table sends the spoke CIDR to the
+   same-AZ Network Firewall endpoint (return-path route).
+3. Firewall (stateful, established flow) -> firewall subnet -> spoke CIDR
+   route -> Transit Gateway.
 4. TGW inspection route table (spoke CIDRs propagated) -> spoke attachment.
 5. Appliance mode keeps the return on the same AZ, preserving symmetry.
 

@@ -191,6 +191,11 @@ module "inspection_routing" {
     "1" = module.inspection_vpc.subnet_ids["public-b"]
   }
 
+  inspection_public_route_table_ids = {
+    "0" = module.inspection_vpc.route_table_ids["public-a"]
+    "1" = module.inspection_vpc.route_table_ids["public-b"]
+  }
+
   inspection_firewall_route_table_ids = {
     "0" = module.inspection_vpc.route_table_ids["fw-a"]
     "1" = module.inspection_vpc.route_table_ids["fw-b"]

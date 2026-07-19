@@ -58,6 +58,45 @@ check_purpose "firewall" "NAT"
 check_purpose "public" "IGW"
 check_purpose "tgw" "NFW_ENDPOINT"
 
+# Public subnet spoke-CIDR return routes must target the NFW endpoint (return path
+# through inspection), NOT the IGW/NAT/TGW. The public 0.0.0.0/0 default still
+# targets the IGW (checked above as Purpose=public -> IGW); these are the
+# spoke-CIDR (10.x) return routes added by the return-path fix.
+echo "# Inspection public-subnet spoke-CIDR return routes (must be NFW_ENDPOINT, not IGW/NAT/TGW):"
+if [[ "$RUN" -eq 1 ]]; then
+  echo "==> Purpose=public: require each spoke-CIDR route -> NFW_ENDPOINT (active, not blackhole)"
+  json=$(aws ec2 describe-route-tables --filters Name=tag:Purpose,Values=public --output json)
+  # Classify every route in the public route tables; fail if any spoke-CIDR route
+  # (non-0.0.0.0/0, non-local) is not NFW_ENDPOINT.
+  echo "$json" | python "$PY" --destination 0.0.0.0/0 --expected IGW --quiet || FAIL=1
+  # Now assert spoke-CIDR routes (10.0.0.0/8-ish) are NFW_ENDPOINT. classify_route
+  # validates per-route; run it without a destination filter and inspect failures
+  # for any route that is neither local nor IGW(0.0.0.0/0) nor NFW_ENDPOINT.
+  echo "$json" | PYTHONPATH="$SCRIPT_DIR" python -c '
+import sys, json, re
+import classify_route as cr
+blob = json.load(sys.stdin)
+bad = 0
+for rt in blob.get("RouteTables", []):
+    for r in rt.get("Routes", []):
+        dst = r.get("DestinationCidrBlock", "")
+        if not dst or dst == "0.0.0.0/0":
+            continue
+        if r.get("GatewayId") == "local":
+            continue
+        label = cr.classify(r)
+        if label != cr.NFW_ENDPOINT:
+            print(f"FAIL public spoke return route dst={dst} classified={label} (expected NFW_ENDPOINT)", file=sys.stderr)
+            bad = 1
+        elif cr.is_blackhole(r):
+            print(f"FAIL public spoke return route dst={dst} blackhole", file=sys.stderr)
+            bad = 1
+sys.exit(bad)
+' || { echo "FAIL: public spoke return route mismatch/blackhole" >&2; FAIL=1; }
+else
+  echo "aws ec2 describe-route-tables --filters Name=tag:Purpose,Values=public --output json | python classify_route.py (+ spoke-CIDR -> NFW_ENDPOINT assertion)"
+fi
+
 echo "# Full route fields per purpose (no target field hidden):"
 maybe_run 'aws ec2 describe-route-tables --filters Name=tag:Purpose,Values=tgw,public,firewall,app,shared --query "RouteTables[*].{rt:RouteTableId,purpose:Tags[?Key==`"Purpose`"].Value|[0],routes:Routes[?DestinationCidrBlock==`"0.0.0.0/0`"].{dst:DestinationCidrBlock,gw:GatewayId,vpce:VpcEndpointId,tgw:TransitGatewayId,nat:NatGatewayId,eni:NetworkInterfaceId,eigw:EgressOnlyInternetGatewayId,state:State,origin:Origin}}" --output table'
 

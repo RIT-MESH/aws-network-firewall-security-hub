@@ -77,7 +77,7 @@ defects were found and fixed (commit af56b8b, applied):
    traffic (`PassedPackets` 0 -> 13); the `drop_strict` default still denies
    unmatched traffic.
 
-## Return-path routing defect (runtime finding) — OPEN
+## Return-path routing defect (runtime finding) — FIXED
 
 After the stateful fixes, allowed HTTPS and approved-DNS-TCP flows still time
 out even though the firewall passes the forward direction (`PassedPackets > 0`).
@@ -91,14 +91,14 @@ is never sent, and the TLS SNI domain rules cannot evaluate. This also blocks
 approved-DNS-TCP (the RST return does not reach the client) and prevents
 restricted-domain blocking from being identified by the DENYLIST.
 
-Fix direction: add `spoke CIDRs -> same-AZ firewall endpoint` routes to the
-inspection public subnet route tables so the NAT return goes back through the
-firewall (stateful inspection) -> firewall subnet (`spoke -> TGW`) -> TGW ->
-spoke. This is a route-resource addition (`aws_route`), outside the firewall-
-policy/rule-group apply scope, and requires separate approval. Until it is
-fixed, allowed HTTPS, approved DNS TCP, restricted-domain blocking, and
-return-path symmetry cannot be validated as PASS, so the project remains
-"Deployed, runtime validation incomplete."
+Fixed: the inspection-routing module now creates `spoke CIDRs -> same-AZ
+Network Firewall endpoint` routes in each inspection public subnet route table
+(`aws_route.public_to_firewall_spokes`, AZ-keyed like `tgw_to_firewall`). The
+NAT return to spoke private IPs now goes back through the firewall (stateful
+inspection) -> firewall subnet (`spoke -> TGW`) -> TGW -> spoke, restoring
+symmetric inspected return traffic. The public `0.0.0.0/0 -> IGW` default is
+unchanged. `scripts/test-routes.sh` validates the public spoke-CIDR return
+routes against live AWS state.
 
 ## SSM access (resolved)
 

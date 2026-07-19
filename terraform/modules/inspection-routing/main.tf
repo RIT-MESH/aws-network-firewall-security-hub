@@ -90,3 +90,33 @@ resource "aws_route" "tgw_to_firewall" {
   destination_cidr_block = "0.0.0.0/0"
   vpc_endpoint_id        = each.value
 }
+
+# ----- Public subnet spoke-CIDR return routes -> same-AZ firewall endpoint -----
+#
+# SECURITY-CRITICAL return-path fix. After a NAT Gateway destination-translates
+# a return packet to a private workload IP, that packet lands in the inspection
+# public subnet route table. Without explicit spoke-CIDR routes it would match
+# the public 0.0.0.0/0 -> IGW default and be dropped (private destination over
+# the IGW). These routes send spoke-CIDR return traffic back through the SAME-AZ
+# Network Firewall endpoint so the stateful firewall sees the return flow, then
+# the firewall subnet's spoke-CIDR -> TGW route returns it to the originating
+# workload via the Transit Gateway. This preserves symmetric, inspected return
+# traffic and does NOT bypass the firewall (the return traverses the NFW
+# endpoint, not a direct NAT->TGW path).
+#
+# Route table and endpoint are aligned by the SAME AZ-index key (each.key), not
+# by positional list index. A key mismatch between inspection_public_route_table_ids
+# and firewall_endpoint_ids_by_az fails loudly at plan/apply time (lookup error).
+resource "aws_route" "public_to_firewall_spokes" {
+  for_each = {
+    for pair in setproduct(keys(var.inspection_public_route_table_ids), var.spoke_cidrs) :
+    "${pair[0]}|${pair[1]}" => {
+      az_key     = pair[0]
+      spoke_cidr = pair[1]
+    }
+  }
+
+  route_table_id         = var.inspection_public_route_table_ids[each.value.az_key]
+  destination_cidr_block = each.value.spoke_cidr
+  vpc_endpoint_id        = var.firewall_endpoint_ids_by_az[each.value.az_key]
+}

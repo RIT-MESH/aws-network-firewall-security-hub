@@ -22,7 +22,7 @@ scripts/test-firewall-rules.sh
 ## Routing validation (deployed)
 
 ```bash
-scripts/test-routes.sh --run
+scripts/test-routes.sh --run  # validates workload, firewall, TGW, public IGW, and public spoke-CIDR -> NFW return routes
 ```
 
 ## Traffic validation (deployed)

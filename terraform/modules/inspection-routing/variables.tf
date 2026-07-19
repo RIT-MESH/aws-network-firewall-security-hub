@@ -32,6 +32,12 @@ variable "inspection_public_subnet_ids" {
   type        = map(string)
 }
 
+variable "inspection_public_route_table_ids" {
+  description = "Map of AZ index (string, e.g. \"0\",\"1\") -> inspection public subnet route table ID. Used to add spoke-CIDR return routes that send NAT-translated return traffic back through the same-AZ Network Firewall endpoint (restoring symmetric return through inspection). Keys MUST match the keys of firewall_endpoint_ids_by_az."
+  type        = map(string)
+  default     = {}
+}
+
 variable "inspection_firewall_route_table_ids" {
   description = "Map of AZ index (string) -> inspection firewall subnet route table ID."
   type        = map(string)
