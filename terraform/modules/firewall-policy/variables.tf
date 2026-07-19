@@ -73,9 +73,9 @@ variable "stateless_fragment_default_actions" {
 }
 
 variable "stateful_default_actions" {
-  description = "Default action for stateful traffic that matches no stateful rule. drop_established allows the TCP handshake to complete so TLS SNI domain-list rules can evaluate, then drops unmatched established flows; drop_strict would drop the SYN before the SNI is seen."
+  description = "Default action for stateful traffic that matches no stateful rule. alert_strict alerts (but does not drop) unmatched stateful traffic, allowing the TCP handshake and TLS ClientHello to pass while the Suricata tls.sni rules evaluate the SNI. Unmatched HTTPS is denied by the catch-all from_server drop rule in the tls-domains rule group. This is required because domain-list SNI evaluation is asynchronous: drop_established drops allowed traffic before the allowlist matches, and alert_strict alone would pass blocked traffic before the denylist matches."
   type        = list(string)
-  default     = ["aws:drop_established"]
+  default     = ["aws:alert_strict"]
 }
 
 variable "rule_variables" {

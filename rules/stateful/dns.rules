@@ -2,5 +2,5 @@
 # Variables: $LAB_HOME_NET (workloads), $LAB_SHARED_NET (approved resolver)
 # AWS Network Firewall requires each Suricata rule on a single line.
 
-pass udp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (msg: "LAB allow workload DNS to approved resolver UDP"; sid: 10000040; rev: 1;)
-pass tcp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (msg: "LAB allow workload DNS to approved resolver TCP"; flow: to_server; sid: 10000041; rev: 1;)
+pass udp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (msg: "LAB allow workload DNS to approved resolver UDP"; sid: 10000080; rev: 1;)
+pass tcp $LAB_HOME_NET any -> $LAB_SHARED_NET 53 (msg: "LAB allow workload DNS to approved resolver TCP"; flow: to_server; sid: 10000081; rev: 1;)

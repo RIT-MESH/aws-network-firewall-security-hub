@@ -4,11 +4,10 @@ locals {
   })
 
   # Strict-order priorities. Lower number = evaluated first.
-  #   50 blocked-domains (DENYLIST)        - drop restricted domains first
-  #   60 allowed-domains (ALLOWLIST)       - enforce egress allowlist for HTTP/HTTPS
+  #   55 tls-domains (Suricata tls.sni pass/drop) - domain allowlist/denylist
+  #   90 dns (allow DNS to approved resolver; above deny so approved DNS passes first)
   #  100 deny (5-tuple drops)
   #  200 alert (alert-only suspicious traffic)
-  #   90 dns (allow DNS to approved resolver; above deny so approved DNS to shared passes first)
   #  400 allow (mgmt SSH, prod->shared logging)
   stateful_priorities = {
     allow = 400
@@ -17,8 +16,9 @@ locals {
     dns   = 90
   }
 
-  blocked_domains_priority = 50
-  allowed_domains_priority = 60
+  tls_domains_priority = 55
+
+  tls_domains_count = (length(var.allowed_domains) > 0 || length(var.blocked_domains) > 0) ? 1 : 0
 
   stateful_refs = [
     for k, g in var.stateful_rule_groups : {
@@ -27,6 +27,31 @@ locals {
       arn      = aws_networkfirewall_rule_group.stateful[k].arn
     }
   ]
+
+  # Generate Suricata tls.sni rules from the allowed/blocked domain lists.
+  # Native tls.sni rules provide flow-level pass/drop verdicts that work
+  # reliably with alert_strict, unlike domain-list rule groups whose
+  # asynchronous SNI evaluation races with the stateful default action.
+  #   Allowed domains -> pass (flow-level, entire flow allowed)
+  #   Blocked domains -> drop (flow-level, entire flow dropped)
+  #   Unmatched HTTPS -> server response dropped by the catch-all rule
+  tls_domain_rules = join("\n", concat(
+    [for i, domain in var.allowed_domains :
+      "pass tls $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 443 (msg: \"LAB allow ${domain}\"; tls.sni; content:\"${domain}\"; sid: ${10000060 + i}; rev: 1;)"
+    ],
+    [for i, domain in var.blocked_domains :
+      "drop tls $LAB_HOME_NET any -> $LAB_EXTERNAL_NET 443 (msg: \"LAB block ${domain}\"; tls.sni; content:\"${domain}\"; sid: ${10000050 + i}; rev: 1;)"
+    ],
+    [
+      "drop tcp $LAB_EXTERNAL_NET 443 -> $LAB_HOME_NET any (msg: \"LAB drop unmatched HTTPS server response\"; flow:from_server,established; sid: 10000070; rev: 1;)"
+    ],
+  ))
+
+  # Rule variables required by the tls.sni rules.
+  tls_domain_rule_variables = {
+    LAB_HOME_NET     = var.rule_variables.LAB_HOME_NET
+    LAB_EXTERNAL_NET = var.rule_variables.LAB_EXTERNAL_NET
+  }
 }
 
 # ----- Stateful Suricata rule groups (allow / deny / alert / dns) -----
@@ -75,23 +100,41 @@ resource "aws_networkfirewall_rule_group" "stateful" {
   tags = merge(local.module_tags, { Name = "${var.name}-${each.key}" })
 }
 
-# ----- Domain-list rule groups -----
+# ----- TLS SNI domain rule group -----
+#
+# Uses native Suricata tls.sni rules instead of AWS Network Firewall domain-list
+# rule groups. Domain-list rule groups evaluate SNI asynchronously, which races
+# with the stateful default action: drop_established drops allowed traffic
+# before the allowlist matches, and alert_strict passes blocked traffic before
+# the denylist matches. Native tls.sni rules set flow-level pass/drop verdicts
+# that are applied consistently once the SNI is parsed. The catch-all
+# from_server drop rule blocks server responses for unmatched HTTPS domains.
 
-resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  count = length(var.allowed_domains) > 0 ? 1 : 0
+resource "aws_networkfirewall_rule_group" "tls_domains" {
+  count = (length(var.allowed_domains) > 0 || length(var.blocked_domains) > 0) ? 1 : 0
 
   # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
 
-  name     = "${var.name}-allowed-domains"
+  name     = "${var.name}-tls-domains"
   capacity = var.domain_rule_group_capacity
   type     = "STATEFUL"
 
   rule_group {
     rules_source {
-      rules_source_list {
-        generated_rules_type = "ALLOWLIST"
-        target_types         = ["TLS_SNI", "HTTP_HOST"]
-        targets              = var.allowed_domains
+      rules_string = local.tls_domain_rules
+    }
+
+    rule_variables {
+      dynamic "ip_sets" {
+        for_each = local.tls_domain_rule_variables
+
+        content {
+          key = ip_sets.key
+
+          ip_set {
+            definition = ip_sets.value
+          }
+        }
       }
     }
 
@@ -100,33 +143,7 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
     }
   }
 
-  tags = merge(local.module_tags, { Name = "${var.name}-allowed-domains" })
-}
-
-resource "aws_networkfirewall_rule_group" "blocked_domains" {
-  count = length(var.blocked_domains) > 0 ? 1 : 0
-
-  # checkov:skip=CKV_AWS_345:Rule group encryption uses AWS-managed encryption; CMK not configured for this lab. Risk: no customer key control. Compensating control: AWS-managed encryption. Reviewer: configure CMK for production.
-
-  name     = "${var.name}-blocked-domains"
-  capacity = var.domain_rule_group_capacity
-  type     = "STATEFUL"
-
-  rule_group {
-    rules_source {
-      rules_source_list {
-        generated_rules_type = "DENYLIST"
-        target_types         = ["TLS_SNI", "HTTP_HOST"]
-        targets              = var.blocked_domains
-      }
-    }
-
-    stateful_rule_options {
-      rule_order = var.stateful_rule_order
-    }
-  }
-
-  tags = merge(local.module_tags, { Name = "${var.name}-blocked-domains" })
+  tags = merge(local.module_tags, { Name = "${var.name}-tls-domains" })
 }
 
 # ----- Stateless drop rule group for blocked destination CIDRs -----
@@ -196,22 +213,12 @@ resource "aws_networkfirewall_firewall_policy" "this" {
       }
     }
 
-    # blocked-domains (DENYLIST), priority 50
+    # tls-domains (Suricata tls.sni pass/drop), priority 55
     dynamic "stateful_rule_group_reference" {
-      for_each = length(var.blocked_domains) > 0 ? { blocked_domains = aws_networkfirewall_rule_group.blocked_domains[0].arn } : {}
+      for_each = local.tls_domains_count > 0 ? { tls_domains = aws_networkfirewall_rule_group.tls_domains[0].arn } : {}
 
       content {
-        priority     = local.blocked_domains_priority
-        resource_arn = stateful_rule_group_reference.value
-      }
-    }
-
-    # allowed-domains (ALLOWLIST), priority 60
-    dynamic "stateful_rule_group_reference" {
-      for_each = length(var.allowed_domains) > 0 ? { allowed_domains = aws_networkfirewall_rule_group.allowed_domains[0].arn } : {}
-
-      content {
-        priority     = local.allowed_domains_priority
+        priority     = local.tls_domains_priority
         resource_arn = stateful_rule_group_reference.value
       }
     }

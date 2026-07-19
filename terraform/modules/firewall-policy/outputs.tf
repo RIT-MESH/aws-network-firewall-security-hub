@@ -13,14 +13,9 @@ output "stateful_rule_group_arns" {
   value       = { for k, g in aws_networkfirewall_rule_group.stateful : k => g.arn }
 }
 
-output "allowed_domains_rule_group_arn" {
-  description = "ARN of the allowed-domains rule group, or null when none."
-  value       = length(aws_networkfirewall_rule_group.allowed_domains) > 0 ? aws_networkfirewall_rule_group.allowed_domains[0].arn : null
-}
-
-output "blocked_domains_rule_group_arn" {
-  description = "ARN of the blocked-domains rule group, or null when none."
-  value       = length(aws_networkfirewall_rule_group.blocked_domains) > 0 ? aws_networkfirewall_rule_group.blocked_domains[0].arn : null
+output "tls_domains_rule_group_arn" {
+  description = "ARN of the tls-domains rule group, or null when none."
+  value       = length(aws_networkfirewall_rule_group.tls_domains) > 0 ? aws_networkfirewall_rule_group.tls_domains[0].arn : null
 }
 
 output "stateless_drop_rule_group_arn" {

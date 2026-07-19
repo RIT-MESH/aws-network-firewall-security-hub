@@ -56,9 +56,9 @@ def test_stateless_defaults_have_forward_to_sfe_validation():
         )
 
 
-def test_stateful_default_remains_drop_strict():
+def test_stateful_default_is_alert_strict():
     blk = _var_block(_read(FP_VARS), "stateful_default_actions")
-    assert "aws:drop_established" in blk, "stateful default must be drop_established"
+    assert "aws:alert_strict" in blk, "stateful default must be alert_strict for tls.sni domain evaluation"
 
 
 def test_stateful_rule_order_strict():
@@ -83,7 +83,7 @@ def test_stateful_rule_groups_remain_attached_in_strict_order():
     # stateful rule group references for allow/deny/alert/dns + domain lists
     for key in ("allow", "deny", "alert", "dns"):
         assert f'stateful["{key}"]' in text or f'stateful_rule_group_reference' in text
-    assert "allowed_domains" in text and "blocked_domains" in text
+    assert "tls_domains" in text, "tls-domains rule group must be referenced in the firewall policy"
 
 
 def test_root_does_not_override_stateless_default_to_drop():
